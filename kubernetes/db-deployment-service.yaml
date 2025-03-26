@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-db-deployment
+spec:
+  replicas: 1 # Run a single instance of the database
+  selector:
+    matchLabels:
+      app: postgres-db # Pods with this label are managed by this Deployment
+  template:
+    metadata:
+      labels:
+        app: postgres-db # Label applied to the Pod
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14-alpine # Use the same PostgreSQL image as in docker-compose
+        ports:
+        - containerPort: 5432 # Expose the default PostgreSQL port
+        envFrom:
+        - secretRef:
+            name: db-secret # Load environment variables from the Secret
+        volumeMounts:
+        - name: postgres-storage # Mount the persistent volume
+          mountPath: /var/lib/postgresql/data # Mount path inside the container
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: db-pvc # Use the PVC created earlier
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-db-service # Name of the Service
+spec:
+  selector:
+    app: postgres-db # Select Pods with the 'app: postgres-db' label
+  ports:
+    - protocol: TCP
+      port: 5432 # Port the Service listens on
+      targetPort: 5432 # Port on the Pods to forward traffic to
+  type: ClusterIP # Expose the service on a cluster-internal IP (default)

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  service-a:
+    build: ./service-a
+    ports:
+      - "3001:3001" # Map host port 3001 to container port 3001
+    container_name: service-a-container
+
+  service-b:
+    build: ./service-b
+    ports:
+      - "3002:3002" # Map host port 3002 to container port 3002
+    container_name: service-b-container
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80" # Map host port 8080 to container port 80 (nginx)
+    container_name: frontend-container
+    depends_on:
+      - service-a
+      - service-b
+
+  db:
+    image: postgres:14-alpine # Use official PostgreSQL image
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: user # Define database user
+      POSTGRES_PASSWORD: password # Define database password
+      POSTGRES_DB: microservice_db # Define database name
+    ports:
+      - "5432:5432" # Expose PostgreSQL port (optional, for external access/debugging)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist data using a named volume
+
+volumes: # Define the named volume
+  postgres_data:

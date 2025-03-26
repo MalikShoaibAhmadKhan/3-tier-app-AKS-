@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a-deployment
+spec:
+  replicas: 2 # Example: run 2 replicas for availability
+  selector:
+    matchLabels:
+      app: service-a
+  template:
+    metadata:
+      labels:
+        app: service-a
+    spec:
+      containers:
+      - name: service-a
+        # IMPORTANT: Replace with your actual image path in a container registry
+        image: your-repo/service-a:latest
+        ports:
+        - containerPort: 3001 # Port the service listens on
+        envFrom:
+        - secretRef:
+            name: db-secret # Load DB credentials from the secret
+        env: # Add other environment variables if needed
+        - name: POSTGRES_HOST # Explicitly set the DB host using the K8s service name
+          value: "postgres-db-service"
+        # Add readiness and liveness probes for better health checking (optional but recommended)
+        # readinessProbe:
+        #   httpGet:
+        #     path: / # Check the root path
+        #     port: 3001
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: 3001
+        #   initialDelaySeconds: 15
+        #   periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-service
+spec:
+  selector:
+    app: service-a # Select Pods with the 'app: service-a' label
+  ports:
+    - protocol: TCP
+      port: 3001 # Port the Service listens on
+      targetPort: 3001 # Port on the Pods to forward traffic to
+  type: ClusterIP # Expose internally first; frontend will connect to this

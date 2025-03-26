@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 2 # Example: run 2 replicas
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        # IMPORTANT: Replace with your actual image path in a container registry
+        image: your-repo/frontend:latest
+        ports:
+        - containerPort: 80 # Nginx default port
+        # Add readiness/liveness probes if desired
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  selector:
+    app: frontend # Select Pods with the 'app: frontend' label
+  ports:
+    - protocol: TCP
+      port: 80 # Port the Service listens on externally
+      targetPort: 80 # Port on the Pods (nginx) to forward traffic to
+  # Use LoadBalancer for cloud providers or NodePort for local clusters like Minikube/kind
+  # type: LoadBalancer
+  type: NodePort # Using NodePort as a common default for local testing
+  # If using NodePort, you might specify a nodePort: 30080 (for example)
