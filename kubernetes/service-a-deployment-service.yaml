@@ -14,8 +14,9 @@ spec:
     spec:
       containers:
       - name: service-a
-        # IMPORTANT: Replace with your actual image path in a container registry
-        image: your-repo/service-a:latest
+        # Using the locally built image in Minikube
+        image: service-a:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 3001 # Port the service listens on
         envFrom:

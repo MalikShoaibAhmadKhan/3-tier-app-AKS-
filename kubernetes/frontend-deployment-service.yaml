@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: frontend-deployment
 spec:
-  replicas: 2 # Example: run 2 replicas
+  replicas: 1 # Typically one frontend replica is enough for dev/test
   selector:
     matchLabels:
       app: frontend
@@ -14,10 +14,11 @@ spec:
     spec:
       containers:
       - name: frontend
-        # IMPORTANT: Replace with your actual image path in a container registry
-        image: your-repo/frontend:latest
+        # Using the locally built image in Minikube
+        image: frontend:latest
+        imagePullPolicy: Never
         ports:
-        - containerPort: 80 # Nginx default port
+        - containerPort: 80 # Nginx serves on port 80
         # Add readiness/liveness probes if desired
 ---
 apiVersion: v1

@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  service-a:
+    build: ./service-a
+    ports:
+      - "3001:3001"
+    container_name: service-a-container
+    environment:
+      POSTGRES_USER: your_username
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: your_database
+      POSTGRES_HOST: db
+
+  service-b:
+    build: ./service-b
+    ports:
+      - "3002:3002"
+    container_name: service-b-container
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    container_name: frontend-container
+    depends_on:
+      - service-a
+      - service-b
+
+  db:
+    image: postgres:14-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: your_username
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: your_database
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data: 
