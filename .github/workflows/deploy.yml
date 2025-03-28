@@ -110,7 +110,11 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TERRAFORM_STORAGE_RG }}" \
             -backend-config="storage_account_name=${{ secrets.TERRAFORM_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.TERRAFORM_CONTAINER }}" \
-            -backend-config="key=terraform-${{ env.ENVIRONMENT }}.tfstate"
+            -backend-config="key=terraform-${{ env.ENVIRONMENT }}.tfstate" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}"
 
       - name: Terraform Plan
         id: plan
@@ -120,6 +124,10 @@ jobs:
             -var="environment=${{ env.ENVIRONMENT }}" \
             -var="db_username=${{ secrets.DB_USERNAME }}" \
             -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -out=tfplan
 
       - name: Terraform Apply
