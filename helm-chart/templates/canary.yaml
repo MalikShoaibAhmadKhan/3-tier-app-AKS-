@@ -1,0 +1,35 @@
+{{- if .Values.canary.enabled }}
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{ .Values.frontend.name }}-canary
+spec:
+  provider: kubernetes
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.frontend.name }}
+  progressDeadlineSeconds: 60
+  service:
+    port: 80
+    targetPort: 80
+  analysis:
+    interval: 30s
+    threshold: 5
+    maxWeight: 100
+    stepWeight: 20
+    metrics:
+    - name: request-success-rate
+      threshold: 99
+      interval: 1m
+    - name: request-duration
+      threshold: 500
+      interval: 1m
+  webhooks:
+    - name: gate
+      type: confirm-rollout
+      url: http://flagger-loadtester.test/gate/approve
+    - name: acceptance-test
+      type: pre-rollout
+      url: http://flagger-loadtester.test/
+{{- end }} 

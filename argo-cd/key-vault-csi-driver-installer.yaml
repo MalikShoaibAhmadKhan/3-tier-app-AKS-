@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csi-secrets-store
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: key-vault-csi-driver
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: secrets-store-csi-driver
+    repoURL: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+    targetRevision: 1.3.0
+    helm:
+      values: |
+        linux:
+          enabled: true
+        windows:
+          enabled: false
+        syncSecret:
+          enabled: true
+        enableSecretRotation: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: csi-secrets-store
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: key-vault-provider
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: csi-secrets-store-provider-azure
+    repoURL: https://azure.github.io/secrets-store-csi-driver-provider-azure/charts
+    targetRevision: 1.4.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: csi-secrets-store
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

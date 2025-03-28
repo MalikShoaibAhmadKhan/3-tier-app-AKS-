@@ -1,0 +1,14 @@
+# Production values for microservices-demo
+# This is a YAML-formatted file.
+
+replicaCount: 3
+
+# Enable canary deployments for production
+canary:
+  enabled: true
+  percentage: 20
+
+# Production database configuration
+database:
+  storage:
+    size: 10Gi 
