@@ -45,9 +45,9 @@ spec:
               key: password
         {{- else }}
         - name: POSTGRES_USER
-          value: "dbuser"
+          value: {{ .Values.database.credentials.username | quote }}
         - name: POSTGRES_PASSWORD
-          value: "dbpassword"
+          value: {{ .Values.database.credentials.password | quote }}
         {{- end }}
         - name: POSTGRES_DB
           value: "microservices"

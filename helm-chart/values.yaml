@@ -6,7 +6,7 @@ replicaCount: 1
 frontend:
   name: frontend
   image:
-    repository: ghcr.io/your-username/kubemicrodemo/frontend
+    repository: ghcr.io/wahaj4311/3-tier-app/frontend
     tag: latest
     pullPolicy: Always
   service:
@@ -17,7 +17,7 @@ frontend:
 serviceA:
   name: service-a
   image:
-    repository: ghcr.io/your-username/kubemicrodemo/service-a
+    repository: ghcr.io/wahaj4311/3-tier-app/service-a
     tag: latest
     pullPolicy: Always
   service:
@@ -28,7 +28,7 @@ serviceA:
 serviceB:
   name: service-b
   image:
-    repository: ghcr.io/your-username/kubemicrodemo/service-b
+    repository: ghcr.io/wahaj4311/3-tier-app/service-b
     tag: latest
     pullPolicy: Always
   service:
@@ -48,6 +48,9 @@ database:
     targetPort: 5432
   storage:
     size: 1Gi
+  credentials:
+    username: dbuser
+    password: dbpassword123
   
 # Canary deployment settings
 canary:
