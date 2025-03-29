@@ -59,3 +59,14 @@ ingressNginx:
   controller:
     service:
       externalTrafficPolicy: Local
+
+# Azure Key Vault configuration
+keyVault:
+  enabled: false  # Set to true when using Azure Key Vault
+  name: ""        # Name of the Key Vault
+  tenantId: ""   # Azure Tenant ID
+  secrets:
+    - name: postgres-db-secret
+      keys:
+        - POSTGRES_USER
+        - POSTGRES_PASSWORD
