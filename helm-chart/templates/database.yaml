@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ .Values.database.name }}-pvc
 spec:
+  storageClassName: managed
   accessModes:
     - ReadWriteOnce
   resources:
@@ -32,25 +33,20 @@ spec:
         ports:
         - containerPort: 5432
         env:
-        {{- if .Values.keyVault.enabled }}
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              name: database-creds
-              key: username
+              name: postgres-db-secret
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: database-creds
-              key: password
-        {{- else }}
-        - name: POSTGRES_USER
-          value: {{ .Values.database.credentials.username | quote }}
-        - name: POSTGRES_PASSWORD
-          value: {{ .Values.database.credentials.password | quote }}
-        {{- end }}
+              name: postgres-db-secret
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_DB
           value: "microservices"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/postgresql/data

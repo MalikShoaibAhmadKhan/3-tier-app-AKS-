@@ -35,6 +35,8 @@ spec:
       containers:
       - name: argocd-server
         image: quay.io/argoproj/argocd:v2.6.7
+        command:
+        - argocd-server
         ports:
         - containerPort: 8080
 ---
@@ -69,6 +71,8 @@ spec:
       containers:
       - name: argocd-repo-server
         image: quay.io/argoproj/argocd:v2.6.7
+        command:
+        - argocd-repo-server
         ports:
         - containerPort: 8081
 ---
@@ -90,6 +94,8 @@ spec:
       containers:
       - name: argocd-application-controller
         image: quay.io/argoproj/argocd:v2.6.7
+        command:
+        - argocd-application-controller
 ---
 apiVersion: v1
 kind: ConfigMap

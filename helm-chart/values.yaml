@@ -10,7 +10,7 @@ frontend:
     tag: latest
     pullPolicy: Always
   service:
-    type: LoadBalancer
+    type: ClusterIP
     port: 80
     targetPort: 80
 
@@ -48,16 +48,14 @@ database:
     targetPort: 5432
   storage:
     size: 1Gi
-  credentials:
-    username: dbuser
-    password: dbpassword123
-  
+
 # Canary deployment settings
 canary:
   enabled: false
   percentage: 20
 
-# Enable Azure Key Vault integration
-keyVault:
+ingressNginx:
   enabled: true
-  secretProviderClass: azure-keyvault-provider 
+  controller:
+    service:
+      externalTrafficPolicy: Local

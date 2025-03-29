@@ -83,30 +83,30 @@ Add the following secrets to your GitHub repository:
 
 ### 3. Create Azure Service Principal
 
-```bash
+   ```bash
 # Login to Azure
 az login
 
 # Create service principal
-az ad sp create-for-rbac --name "kubemicrodemo-sp" --role contributor --scopes /subscriptions/<subscription-id> --sdk-auth
-```
+   az ad sp create-for-rbac --name "kubemicrodemo-sp" --role contributor --scopes /subscriptions/<subscription-id> --sdk-auth
+   ```
 
 Take note of the output, which will contain the client ID, client secret, and tenant ID needed for GitHub secrets.
 
 ### 4. Set up Terraform State Storage
 
-```bash
-# Create resource group
-az group create --name kubemicrodemo-terraform-storage-rg --location eastus
-
-# Create storage account
+   ```bash
+   # Create resource group
+   az group create --name kubemicrodemo-terraform-storage-rg --location eastus
+   
+   # Create storage account
 az storage account create \
   --resource-group kubemicrodemo-terraform-storage-rg \
   --name tfstatekubemicro \
   --sku Standard_LRS \
   --encryption-services blob
-
-# Create container
+   
+   # Create container
 az storage container create \
   --name tfstate \
   --account-name tfstatekubemicro
@@ -147,11 +147,11 @@ Once you've set up the GitHub secrets and updated the configuration, push your c
 4. Install the Azure Key Vault CSI Driver
 5. Deploy the application with ArgoCD
 
-```bash
+   ```bash
 git add .
 git commit -m "Initial setup for GitOps deployment"
 git push
-```
+   ```
 
 ### 7. Manual Deployment Guide
 

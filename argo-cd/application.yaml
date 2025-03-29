@@ -11,7 +11,7 @@ spec:
     path: helm-chart
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: microservices-demo # Changed from default
   syncPolicy:
     automated:
       prune: true

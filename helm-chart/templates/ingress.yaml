@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: microdemo-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /frontend(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Values.frontend.name }}
+            port:
+              number: {{ .Values.frontend.service.port }}
+      - path: /api/service-a(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Values.serviceA.name }}
+            port:
+              number: {{ .Values.serviceA.service.port }}
+      - path: /api/service-b(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Values.serviceB.name }}
+            port:
+              number: {{ .Values.serviceB.service.port }} 

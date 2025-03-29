@@ -96,11 +96,11 @@
             outputElement.textContent = 'Fetching...';
             outputElement.className = 'status-fetching'; // Add class for styling
             let url = '';
-            // URLs now point to the /data endpoints
+            // Use relative URLs that match the ingress paths
             if (service === 'a') {
-                url = 'http://localhost:3001/data'; // Use service-a's data endpoint
+                url = '/api/service-a/data'; // Use ingress path instead of localhost
             } else if (service === 'b') {
-                url = 'http://localhost:3002/data'; // Use service-b's data endpoint
+                url = '/api/service-b/data'; // Use ingress path instead of localhost
             }
 
             try {
