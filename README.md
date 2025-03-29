@@ -33,6 +33,117 @@ The architecture includes the following components:
 - **GitHub Actions**: CI/CD pipeline to build and deploy the application
 - **Microservices**: Sample application with frontend, service-a, service-b, and PostgreSQL database
 
+## 🔄 Network & Application Topology
+
+```mermaid
+flowchart TB
+    %% Styling Definitions - Network Focus
+    classDef azure fill:#1E90FF,stroke:#B0E0E6,stroke-width:3px,color:#fff,rx:10,ry:10  %% Azure blue
+    classDef vnet fill:#87CEEB,stroke:#1E90FF,stroke-width:2px,color:#000,rx:8,ry:8      %% Sky blue for VNet/Subnet
+    classDef aks fill:#4682B4,stroke:#1E90FF,stroke-width:2px,color:#fff,rx:8,ry:8      %% Steel blue for AKS
+    classDef netsec fill:#FFA07A,stroke:#FF6347,stroke-width:2px,color:#000,rx:6,ry:6   %% Light salmon for Network Security
+    classDef lb fill:#FFD700,stroke:#DAA520,stroke-width:2px,color:#000,rx:10,ry:10      %% Gold for Load Balancer
+    classDef ingress fill:#4169E1,stroke:#1E90FF,stroke-width:2px,color:#fff,rx:6,ry:6   %% Royal blue for Ingress
+    classDef app fill:#32CD32,stroke:#228B22,stroke-width:2px,color:#000,rx:6,ry:6      %% Lime green for Apps
+    classDef platform fill:#BA55D3,stroke:#8A2BE2,stroke-width:2px,color:#fff,rx:8,ry:8 %% Medium orchid for Platform
+    classDef storage fill:#FF8C00,stroke:#D2691E,stroke-width:2px,color:#fff,rx:12,ry:12 %% Dark orange for Storage
+    classDef secret fill:#DC143C,stroke:#B22222,stroke-width:2px,color:#fff,rx:12,ry:12 %% Crimson for Secrets
+    classDef user fill:#696969,stroke:#808080,stroke-width:4px,color:#fff,rx:20,ry:20   %% Dim gray for User
+    classDef git fill:#FF4500,stroke:#CD5C5C,stroke-width:2px,color:#fff,rx:6,ry:6      %% Orange-red for Git
+
+    %% --- Network Layer --- 
+    User((🧑‍💻 User)) --> AzureLB[🌐 Azure Load Balancer]
+    
+    subgraph AzureCloud["☁️ Azure Cloud"]
+        direction TB
+        AKV[🔑 Azure Key Vault]
+        
+        subgraph VNet["🔗 Virtual Network (VNet)"]
+            direction TB
+            NSG[🛡️ Network Security Group]
+            subgraph Subnet["🔌 AKS Subnet"]
+                direction TB
+                AzureLB -- Routes Traffic --> AKSCluster["🚀 AKS Cluster"]
+                
+                subgraph AKSCluster
+                    direction TB
+                    IC[🚦 Ingress Controller]
+                    
+                    subgraph AppServices["🌟 Application Services"]
+                        direction LR
+                        FE[🖥️ Frontend]
+                        SA[⚡ Service A]
+                        SB[🎲 Service B]
+                        DB[(💾 PostgreSQL)]
+                    end
+                    
+                    subgraph PlatformServices["⚙️ Platform Services"]
+                        direction LR
+                        AG[🔄 ArgoCD]
+                        KV[🔐 Key Vault CSI Driver]
+                    end
+                end
+            end
+            AKSCluster -- Secured By --> NSG
+        end
+    end
+    
+    %% --- GitOps Layer --- 
+    subgraph GitOpsWorkflow["🔄 GitOps Workflow"]
+        GH[📦 GitHub Repo]
+    end
+    
+    %% --- Connections --- 
+    %% External Traffic Flow
+    IC --> FE
+    IC --> SA
+    IC --> SB
+    
+    %% Internal Traffic & Dependencies
+    SA --> DB
+    
+    %% Secret Management Flow
+    KV <.-> |Get/Mount Secrets| AKV
+    SA -.-> |Uses Secret| KV
+    DB -.-> |Uses Secret| KV
+    
+    %% GitOps Sync
+    AG --> |Syncs From| GH
+    
+    %% Apply Styling Classes
+    class AzureCloud,VNet azure
+    class Subnet vnet
+    class AKSCluster aks
+    class NSG netsec
+    class AzureLB lb
+    class IC ingress
+    class FE,SA,SB,AppServices app
+    class AG,KV,PlatformServices platform
+    class DB storage
+    class AKV secret
+    class User user
+    class GH,GitOpsWorkflow git
+
+    %% Link Styling
+    linkStyle default stroke:#696969,stroke-width:2px
+    linkStyle 0 stroke:#FFA500,stroke-width:3px
+    linkStyle 1 stroke:#4682B4,stroke-width:3px
+    linkStyle 6,7 stroke:#DC143C,stroke-width:2px,stroke-dasharray: 5 5
+    linkStyle 8,9 stroke:#DC143C,stroke-width:2px,stroke-dasharray: 2 2
+    linkStyle 10 stroke:#FF4500,stroke-width:2px
+```
+
+### 🎨 Diagram Interpretation
+
+
+1.  **External Access**: User traffic hits the Azure Load Balancer (`🌐`), which fronts the AKS cluster.
+2.  **Azure Networking**: The AKS cluster resides within a dedicated Subnet (`🔌`), which is part of a Virtual Network (`🔗`). Network Security Groups (`🛡️`) control traffic flow into the subnet.
+3.  **Ingress Routing**: Inside AKS, the Load Balancer routes traffic to the Ingress Controller (`🚦`), which then directs requests to the appropriate application services (`🌟`).
+4.  **Internal Communication**: Services like Service A (`⚡`) communicate internally with the PostgreSQL database (`💾`).
+5.  **Secret Management**: The Key Vault CSI Driver (`🔐`) securely fetches secrets from Azure Key Vault (`🔑`) and mounts them for use by applications and the database.
+6.  **GitOps Flow**: ArgoCD (`🔄`) pulls configuration from the GitHub Repository (`📦`) to manage deployments.
+
+
 ## ✅ Prerequisites
 
 Before you begin, ensure you have:
@@ -243,23 +354,76 @@ kubectl get pods -A
 
 ## Accessing the Application
 
-After deployment, you can access:
+After deployment, you can access the following services:
 
-1. **Frontend**: Find the external IP of the frontend service
+1. **Application Services** through the Ingress Controller:
    ```bash
-   kubectl get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+   # Get the Ingress Controller's external IP
+   export INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   
+   # Access URLs
+   echo "Frontend UI: http://$INGRESS_IP/frontend/"
+   echo "Service A API: http://$INGRESS_IP/api/service-a/data"
+   echo "Service B API: http://$INGRESS_IP/api/service-b/data"
    ```
 
-2. **ArgoCD Dashboard**: Find the external IP of the ArgoCD server
+2. **ArgoCD Dashboard**:
    ```bash
-   kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+   # Get ArgoCD server external IP
+   export ARGOCD_IP=$(kubectl get svc -n argocd argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   echo "ArgoCD UI: http://$ARGOCD_IP"
+   
+   # Get initial admin password
+   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
    ```
    Default credentials:
-   - Username: admin
-   - Password: Run the following command to get the initial password:
-     ```bash
-     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-     ```
+   - Username: `admin`
+   - Password: Use the output from the command above
+
+   Alternatively, you can use port forwarding to access ArgoCD locally:
+   ```bash
+   kubectl port-forward svc/argocd-server -n argocd 8080:443
+   # Access ArgoCD at http://localhost:8080
+   ```
+
+3. **Service Architecture**:
+   - All application services are exposed through the Ingress Controller
+   - Services use `externalTrafficPolicy: Local` for optimal routing and client source IP preservation
+   - Internal services (postgres, etc.) are only accessible within the cluster
+   - All external traffic is routed through the ingress-nginx controller with TLS termination
+
+4. **Verifying Service Status**:
+   ```bash
+   # Check ingress-nginx service (provides external access)
+   kubectl get svc -n ingress-nginx
+
+   # Check application services
+   kubectl get svc -n microservices-demo
+
+   # Check ArgoCD service
+   kubectl get svc -n argocd
+   ```
+
+5. **Monitoring Service Health**:
+   ```bash
+   # Check pods status
+   kubectl get pods -n microservices-demo
+
+   # Check ingress configuration
+   kubectl get ingress -n microservices-demo
+
+   # View service logs (examples)
+   kubectl logs -l app=frontend -n microservices-demo
+   kubectl logs -l app=service-a -n microservices-demo
+   kubectl logs -l app=service-b -n microservices-demo
+   ```
+
+6. **Security Best Practices**:
+   - All sensitive information is stored in Azure Key Vault
+   - Services communicate over internal network within the cluster
+   - External access is controlled through ingress rules
+   - Network policies can be enabled for additional security
+   - Regular monitoring and logging are enabled for all services
 
 ## How GitOps Works with ArgoCD
 
