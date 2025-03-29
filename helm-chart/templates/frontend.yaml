@@ -14,10 +14,6 @@ spec:
       labels:
         app: {{ .Values.frontend.name }}
     spec:
-      volumes:
-      - name: frontend-html
-        configMap:
-          name: frontend-html
       containers:
       - name: {{ .Values.frontend.name }}
         image: {{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}
@@ -29,10 +25,6 @@ spec:
           value: http://{{ .Values.serviceA.name }}:{{ .Values.serviceA.service.port }}
         - name: SERVICE_B_URL
           value: http://{{ .Values.serviceB.name }}:{{ .Values.serviceB.service.port }}
-        volumeMounts:
-        - name: frontend-html
-          mountPath: /usr/share/nginx/html/index.html
-          subPath: index.html
 ---
 apiVersion: v1
 kind: Service
