@@ -3,18 +3,37 @@ kind: Application
 metadata:
   name: microservices-demo
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
     repoURL: https://github.com/wahaj4311/3-tier-app.git
     targetRevision: main
     path: helm-chart
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: "ingressNginx.controller.service.externalTrafficPolicy"
+          value: "Local"
   destination:
     server: https://kubernetes.default.svc
-    namespace: microservices-demo # Changed from default
+    namespace: microservices-demo
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
