@@ -1,0 +1,118 @@
+name: Deploy ArgoCD Applications
+
+on:
+  workflow_run:
+    workflows: ["Terraform Infrastructure", "CI Pipeline"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy ArgoCD applications'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, dev, prod]
+
+env:
+  ENVIRONMENT: ${{ inputs.environment || 'all' }}
+
+jobs:
+  deploy-argocd-apps:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ secrets.AKS_RESOURCE_GROUP || 'aks-gitops-rg' }} \
+            --name ${{ secrets.AKS_CLUSTER_NAME || 'aks-gitops-cluster' }}
+            
+      # Install ArgoCD if not already installed
+      - name: Ensure ArgoCD is installed
+        run: |
+          if ! kubectl get namespace argocd &> /dev/null; then
+            kubectl create namespace argocd
+            kubectl apply -n argocd -f argo-cd/install.yaml
+            kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+          fi
+          
+      # Install Azure Key Vault CSI Driver if not already installed
+      - name: Ensure Key Vault CSI Driver is installed
+        run: |
+          kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
+          kubectl wait --for=condition=established --timeout=120s crd/secretproviderclasses.secrets-store.csi.x-k8s.io || echo "CRD already exists"
+          
+      # Update secret provider with tenant ID
+      - name: Update secret-provider.yaml with tenant ID
+        run: |
+          # Replace placeholder with actual tenant ID
+          sed -i "s/\${TENANT_ID}/${{ secrets.AZURE_TENANT_ID }}/g" argo-cd/secret-provider.yaml
+          kubectl apply -f argo-cd/secret-provider.yaml
+
+      # Create ArgoCD project
+      - name: Create ArgoCD Project
+        run: |
+          sed -i "s|https://github.com/your-username/kubemicrodemo.git|${{ github.server_url }}/${{ github.repository }}.git|g" argo-cd/project.yaml
+          kubectl apply -f argo-cd/project.yaml
+        
+      # Create Dev Environment Application
+      - name: Create Dev Environment Application
+        if: ${{ env.ENVIRONMENT == 'all' || env.ENVIRONMENT == 'dev' }}
+        run: |
+          # Update repository URL with actual repo URL
+          sed -i "s|https://github.com/your-username/kubemicrodemo.git|${{ github.server_url }}/${{ github.repository }}.git|g" argo-cd/applications/dev.yaml
+          kubectl apply -f argo-cd/applications/dev.yaml
+        
+      # Create Prod Environment Application
+      - name: Create Prod Environment Application
+        if: ${{ env.ENVIRONMENT == 'all' || env.ENVIRONMENT == 'prod' }}
+        run: |
+          # Update repository URL with actual repo URL
+          sed -i "s|https://github.com/your-username/kubemicrodemo.git|${{ github.server_url }}/${{ github.repository }}.git|g" argo-cd/applications/prod.yaml
+          kubectl apply -f argo-cd/applications/prod.yaml
+          
+      # Print ArgoCD server URL
+      - name: Print ArgoCD server URL
+        run: |
+          echo "Waiting for ArgoCD server to get external IP..."
+          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/argocd-server -n argocd --timeout=300s || echo "ArgoCD server service not available yet"
+          
+          if [[ $(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
+            echo "ArgoCD server URL: https://$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            echo "Default username: admin"
+            echo "Get the password with: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d"
+          else
+            echo "ArgoCD server doesn't have an external IP yet"
+          fi
+          
+      # Print application URLs
+      - name: Print application URLs
+        run: |
+          if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "dev" ]]; then
+            echo "Waiting for dev frontend service to get external IP..."
+            kubectl -n microservices-dev wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/frontend --timeout=300s || echo "Dev frontend service not available yet"
+            
+            if [[ $(kubectl -n microservices-dev get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
+              echo "Dev Application URL: http://$(kubectl -n microservices-dev get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            fi
+          fi
+          
+          if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "prod" ]]; then
+            echo "Waiting for prod frontend service to get external IP..."
+            kubectl -n microservices-prod wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/frontend --timeout=300s || echo "Prod frontend service not available yet"
+            
+            if [[ $(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
+              echo "Prod Application URL: http://$(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            fi
+          fi 

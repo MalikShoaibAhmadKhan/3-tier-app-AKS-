@@ -1,0 +1,107 @@
+name: Terraform Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy infrastructure'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, prod]
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options: [plan, apply, destroy]
+
+env:
+  ENVIRONMENT: ${{ inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+  TF_ACTION: ${{ inputs.action || 'plan' }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # For OIDC authentication
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TERRAFORM_STORAGE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TERRAFORM_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TERRAFORM_CONTAINER }}" \
+            -backend-config="key=terraform-${{ env.ENVIRONMENT }}.tfstate" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd terraform
+          terraform plan \
+            -var="environment=${{ env.ENVIRONMENT }}" \
+            -var="db_username=${{ secrets.DB_USERNAME }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        if: env.TF_ACTION == 'apply' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+        run: |
+          cd terraform
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: env.TF_ACTION == 'destroy' && github.event_name == 'workflow_dispatch'
+        run: |
+          cd terraform
+          terraform destroy -auto-approve \
+            -var="environment=${{ env.ENVIRONMENT }}" \
+            -var="db_username=${{ secrets.DB_USERNAME }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Export Terraform Outputs
+        if: env.TF_ACTION == 'apply' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+        id: terraform-outputs
+        run: |
+          cd terraform
+          # Store key outputs as GitHub outputs
+          echo "AKS_CLUSTER_NAME=$(terraform output -raw aks_cluster_name)" >> $GITHUB_OUTPUT
+          echo "AKS_RESOURCE_GROUP=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT 

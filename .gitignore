@@ -41,4 +41,37 @@ docker-compose.yml
 Thumbs.db
 
 # Local configuration files
-config.local.js 
+config.local.js
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars.json
+tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Credentials
+credential.json
+*.pem
+*.key
+**/secrets/
+
+# Local development
+.env
+.env.*
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/ 
