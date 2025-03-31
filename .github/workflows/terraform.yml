@@ -66,10 +66,21 @@ jobs:
             -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           
-          # Export outputs for next job
-          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
-          echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
-          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          # Store Terraform outputs in variables first
+          STORAGE_ACCOUNT=$(terraform output -raw storage_account_name)
+          CONTAINER_NAME=$(terraform output -raw container_name)
+          RESOURCE_GROUP=$(terraform output -raw resource_group_name)
+          
+          # Then set GitHub outputs using the variables
+          echo "storage_account_name=${STORAGE_ACCOUNT}" >> $GITHUB_OUTPUT
+          echo "container_name=${CONTAINER_NAME}" >> $GITHUB_OUTPUT
+          echo "resource_group_name=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
+          
+          # Print confirmation
+          echo "Successfully created backend infrastructure:"
+          echo "Storage Account: ${STORAGE_ACCOUNT}"
+          echo "Container: ${CONTAINER_NAME}"
+          echo "Resource Group: ${RESOURCE_GROUP}"
 
   terraform:
     needs: bootstrap
