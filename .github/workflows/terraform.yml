@@ -59,28 +59,47 @@ jobs:
         id: bootstrap
         run: |
           cd terraform/bootstrap
-          terraform init
-          terraform apply -auto-approve \
-            -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
-            -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
-            -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           
-          # Save outputs to files first
-          terraform output -raw storage_account_name > storage_account.txt
-          terraform output -raw container_name > container.txt
-          terraform output -raw resource_group_name > resource_group.txt
+          # Check if resources already exist
+          RG_NAME="kubemicrodemo-terraform-storage-rg"
+          SA_NAME="tfstatekubemicro"
+          CONTAINER_NAME="tfstate"
           
-          # Read from files and set outputs
-          echo "storage_account_name=$(cat storage_account.txt)" >> $GITHUB_ENV
-          echo "container_name=$(cat container.txt)" >> $GITHUB_ENV
-          echo "resource_group_name=$(cat resource_group.txt)" >> $GITHUB_ENV
+          # Check if resource group exists
+          if az group show --name $RG_NAME &>/dev/null; then
+            echo "Resource group already exists, skipping creation"
+            echo "resource_group_name=$RG_NAME" >> $GITHUB_OUTPUT
+          else
+            terraform init
+            terraform apply -auto-approve \
+              -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+              -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+              -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+              -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            
+            # Save outputs to files first
+            terraform output -raw storage_account_name > storage_account.txt
+            terraform output -raw container_name > container.txt
+            terraform output -raw resource_group_name > resource_group.txt
+            
+            # Read from files and set outputs
+            echo "storage_account_name=$(cat storage_account.txt)" >> $GITHUB_OUTPUT
+            echo "container_name=$(cat container.txt)" >> $GITHUB_OUTPUT
+            echo "resource_group_name=$(cat resource_group.txt)" >> $GITHUB_OUTPUT
+          fi
+          
+          # If we skipped Terraform, set the known values as outputs
+          if [ ! -f "storage_account.txt" ]; then
+            echo "storage_account_name=$SA_NAME" >> $GITHUB_OUTPUT
+            echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
+            echo "resource_group_name=$RG_NAME" >> $GITHUB_OUTPUT
+          fi
           
           # Print confirmation
-          echo "Successfully created backend infrastructure:"
-          echo "Storage Account: $(cat storage_account.txt)"
-          echo "Container: $(cat container.txt)"
-          echo "Resource Group: $(cat resource_group.txt)"
+          echo "Using backend infrastructure:"
+          echo "Storage Account: $SA_NAME"
+          echo "Container: $CONTAINER_NAME"
+          echo "Resource Group: $RG_NAME"
 
   terraform:
     needs: bootstrap
