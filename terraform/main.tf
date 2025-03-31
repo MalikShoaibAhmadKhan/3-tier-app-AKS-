@@ -10,38 +10,6 @@ terraform {
   }
 }
 
-# --- Backend Infrastructure Resources ---
-# These resources create the storage for the Terraform remote state.
-# Apply these first with a local backend, then configure the azurerm backend.
-
-resource "azurerm_resource_group" "tf_state_rg" {
-  # Using a separate name to avoid conflict if var.resource_group_name is the same
-  name     = "kubemicrodemo-terraform-storage-rg" 
-  location = var.location # Assumes var.location is defined and suitable
-}
-
-resource "azurerm_storage_account" "tf_state_sa" {
-  name                     = "tfstatekubemicro" # Must be globally unique
-  resource_group_name      = azurerm_resource_group.tf_state_rg.name
-  location                 = azurerm_resource_group.tf_state_rg.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS" # Locally-redundant storage
-
-  tags = {
-    purpose = "terraform-remote-state"
-    environment = var.environment
-  }
-}
-
-resource "azurerm_storage_container" "tf_state_container" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.tf_state_sa.name
-  container_access_type = "private" # Keep state private
-}
-
-# --- End Backend Infrastructure Resources ---
-
-
 provider "azurerm" {
   features {}
   client_id       = var.client_id
@@ -59,7 +27,7 @@ resource "azurerm_resource_group" "rg" {
 resource "azurerm_network_security_group" "aks_nsg" {
   name                = "${var.cluster_name}-nsg"
   location            = azurerm_resource_group.rg.location
-  resource_group_name = "MC_${var.resource_group_name}_${var.cluster_name}_${var.location}"
+  resource_group_name = azurerm_resource_group.rg.name  # Changed to use the main resource group
 
   security_rule {
     name                       = "allow_http"
@@ -127,10 +95,18 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name       = "default"
     node_count = var.node_count
     vm_size    = var.vm_size
+    vnet_subnet_id = azurerm_subnet.aks.id  # Added to use our custom VNet
   }
 
   identity {
     type = "SystemAssigned"
+  }
+
+  network_profile {
+    network_plugin = "azure"
+    dns_service_ip = "10.0.0.10"
+    service_cidr   = "10.0.0.0/16"
+    docker_bridge_cidr = "172.17.0.1/16"
   }
 
   tags = {
@@ -155,11 +131,11 @@ resource "azurerm_key_vault" "kv" {
     object_id = data.azurerm_client_config.current.object_id
 
     key_permissions = [
-      "Get", "List", "Create", "Update"
+      "Get", "List", "Create", "Update", "Delete", "Purge"
     ]
 
     secret_permissions = [
-      "Get", "List", "Set", "Delete"
+      "Get", "List", "Set", "Delete", "Purge"
     ]
   }
 }
@@ -172,9 +148,12 @@ resource "azurerm_key_vault_access_policy" "aks_policy" {
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
 
+  key_permissions = [
+    "Get", "List", "Create", "Update", "Delete", "Purge"
+  ]
+
   secret_permissions = [
-    "Get",
-    "List"
+    "Get", "List", "Set", "Delete", "Purge"
   ]
 }
 
