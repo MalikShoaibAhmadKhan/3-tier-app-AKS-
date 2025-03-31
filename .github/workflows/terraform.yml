@@ -29,10 +29,53 @@ env:
   TF_ACTION: ${{ inputs.action || 'plan' }}
 
 jobs:
-  terraform:
+  bootstrap:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # For OIDC authentication
+      id-token: write
+      contents: read
+    outputs:
+      storage_account: ${{ steps.bootstrap.outputs.storage_account_name }}
+      container_name: ${{ steps.bootstrap.outputs.container_name }}
+      resource_group: ${{ steps.bootstrap.outputs.resource_group_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Bootstrap Backend Storage
+        id: bootstrap
+        run: |
+          cd terraform/bootstrap
+          terraform init
+          terraform apply -auto-approve \
+            -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          
+          # Export outputs for next job
+          echo "storage_account_name=$(terraform output -raw storage_account_name)" >> $GITHUB_OUTPUT
+          echo "container_name=$(terraform output -raw container_name)" >> $GITHUB_OUTPUT
+          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+
+  terraform:
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
       contents: read
 
     steps:
@@ -55,9 +98,9 @@ jobs:
         run: |
           cd terraform
           terraform init \
-            -backend-config="resource_group_name=${{ secrets.TERRAFORM_STORAGE_RG }}" \
-            -backend-config="storage_account_name=${{ secrets.TERRAFORM_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ secrets.TERRAFORM_CONTAINER }}" \
+            -backend-config="resource_group_name=${{ needs.bootstrap.outputs.resource_group }}" \
+            -backend-config="storage_account_name=${{ needs.bootstrap.outputs.storage_account }}" \
+            -backend-config="container_name=${{ needs.bootstrap.outputs.container_name }}" \
             -backend-config="key=terraform-${{ env.ENVIRONMENT }}.tfstate" \
             -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
@@ -103,5 +146,5 @@ jobs:
         run: |
           cd terraform
           # Store key outputs as GitHub outputs
-          echo "AKS_CLUSTER_NAME=$(terraform output -raw aks_cluster_name)" >> $GITHUB_OUTPUT
+          echo "AKS_CLUSTER_NAME=$(terraform output -raw kubernetes_cluster_name)" >> $GITHUB_OUTPUT
           echo "AKS_RESOURCE_GROUP=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT 
