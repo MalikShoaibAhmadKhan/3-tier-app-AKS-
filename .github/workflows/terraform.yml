@@ -72,9 +72,9 @@ jobs:
           terraform output -raw resource_group_name > resource_group.txt
           
           # Read from files and set outputs
-          echo "storage_account_name=$(cat storage_account.txt)" >> $GITHUB_OUTPUT
-          echo "container_name=$(cat container.txt)" >> $GITHUB_OUTPUT
-          echo "resource_group_name=$(cat resource_group.txt)" >> $GITHUB_OUTPUT
+          echo "storage_account_name=$(cat storage_account.txt)" >> $GITHUB_ENV
+          echo "container_name=$(cat container.txt)" >> $GITHUB_ENV
+          echo "resource_group_name=$(cat resource_group.txt)" >> $GITHUB_ENV
           
           # Print confirmation
           echo "Successfully created backend infrastructure:"
