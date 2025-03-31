@@ -19,6 +19,22 @@ This project implements a comprehensive CI/CD pipeline for Kubernetes-based micr
    - Environment-specific applications
    - Automated/manual sync policies
 
+## Terraform Architecture
+
+The Terraform configuration is split into two parts:
+
+1. **Bootstrap Module** (`terraform/bootstrap/`)
+   - Manages the backend infrastructure
+   - Creates Azure Storage Account and Container for Terraform state
+   - Run once manually before main infrastructure deployment
+   - Outputs storage details for GitHub secrets
+
+2. **Main Infrastructure** (`terraform/`)
+   - Uses the bootstrap-created storage as backend
+   - Manages all application infrastructure (AKS, networking, etc.)
+   - Supports multiple environments (dev/prod)
+   - Deployed via GitHub Actions
+
 ## Structure
 
 ```
@@ -42,7 +58,11 @@ kubemicrodemo/
 │   └── README.md                 # This file
 ├── helm-chart/                   # Application Helm charts
 ├── terraform/
-│   ├── main.tf                   # Main Terraform configuration
+│   ├── bootstrap/                # Backend infrastructure setup
+│   │   ├── main.tf              # Storage account and container
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── main.tf                   # Main infrastructure
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── environments/             # Environment-specific variables
@@ -57,18 +77,31 @@ kubemicrodemo/
 
 ## Getting Started
 
-1. **Set up GitHub repository secrets**
-   - See [GitHub Secrets Setup Guide](github-secrets-setup.md)
+1. **Set up Terraform Backend**
+   ```bash
+   cd terraform/bootstrap
+   terraform init
+   terraform apply
+   ```
+   Use the outputs to set GitHub secrets:
+   - `TERRAFORM_STORAGE_RG`
+   - `TERRAFORM_STORAGE_ACCOUNT`
+   - `TERRAFORM_CONTAINER`
 
-2. **Deploy infrastructure**
+2. **Set up GitHub repository secrets**
+   - See [GitHub Secrets Setup Guide](github-secrets-setup.md)
+   - Add Azure authentication secrets
+   - Add Terraform backend secrets from step 1
+
+3. **Deploy infrastructure**
    - Run the Terraform workflow to provision Azure resources
    - Specify environment (dev/prod) and action (plan/apply)
 
-3. **Deploy ArgoCD**
+4. **Deploy ArgoCD**
    - Run the ArgoCD deployment workflow
    - This installs ArgoCD and sets up applications
 
-4. **Start development**
+5. **Start development**
    - Push code changes to trigger the CI/CD pipeline
    - ArgoCD will automatically deploy to development
    - Production deployments require manual approval
@@ -96,3 +129,4 @@ Each environment has its own:
 - ArgoCD application
 - Infrastructure configuration
 - Helm values file
+- Terraform state file in Azure Storage

@@ -5,10 +5,9 @@ terraform {
       version = "~> 3.0"
     }
   }
-  # backend "azurerm" {
-  #   # Temporarily commented out for initial backend resource creation
-  #   # Configuration will be added here after initial apply
-  # }
+  backend "azurerm" {
+    # Configuration will be provided by GitHub Actions workflow
+  }
 }
 
 # --- Backend Infrastructure Resources ---
