@@ -60,42 +60,55 @@ jobs:
         run: |
           cd terraform/bootstrap
           
-          # Check if resources already exist
+          # Define expected names
           RG_NAME="kubemicrodemo-terraform-storage-rg"
           SA_NAME="tfstatekubemicro"
           CONTAINER_NAME="tfstate"
           
           # Check if resource group exists
           if az group show --name $RG_NAME &>/dev/null; then
-            echo "Resource group already exists, skipping creation"
+            echo "Resource group '$RG_NAME' already exists, using existing details."
+            # Set outputs directly using known values
+            echo "storage_account_name=$SA_NAME" >> $GITHUB_OUTPUT
+            echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
             echo "resource_group_name=$RG_NAME" >> $GITHUB_OUTPUT
           else
+            echo "Resource group '$RG_NAME' not found, running Terraform apply..."
             terraform init
             terraform apply -auto-approve \
               -var="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
               -var="client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
               -var="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
               -var="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+            # Check Terraform apply exit status explicitly
+            if [ $? -ne 0 ]; then
+              echo "::error::Terraform apply failed."
+              exit 1
+            fi
             
+            echo "Terraform apply completed. Capturing outputs..."
             # Save outputs to files first
             terraform output -raw storage_account_name > storage_account.txt
             terraform output -raw container_name > container.txt
             terraform output -raw resource_group_name > resource_group.txt
             
             # Read from files and set outputs
-            echo "storage_account_name=$(cat storage_account.txt)" >> $GITHUB_OUTPUT
-            echo "container_name=$(cat container.txt)" >> $GITHUB_OUTPUT
-            echo "resource_group_name=$(cat resource_group.txt)" >> $GITHUB_OUTPUT
+            SA_NAME_OUTPUT=$(cat storage_account.txt)
+            CONTAINER_NAME_OUTPUT=$(cat container.txt)
+            RG_NAME_OUTPUT=$(cat resource_group.txt)
+
+            echo "storage_account_name=$SA_NAME_OUTPUT" >> $GITHUB_OUTPUT
+            echo "container_name=$CONTAINER_NAME_OUTPUT" >> $GITHUB_OUTPUT
+            echo "resource_group_name=$RG_NAME_OUTPUT" >> $GITHUB_OUTPUT
+
+            # Update variables for the final confirmation message
+            SA_NAME=$SA_NAME_OUTPUT
+            CONTAINER_NAME=$CONTAINER_NAME_OUTPUT
+            RG_NAME=$RG_NAME_OUTPUT
           fi
           
-          # If we skipped Terraform, set the known values as outputs
-          if [ ! -f "storage_account.txt" ]; then
-            echo "storage_account_name=$SA_NAME" >> $GITHUB_OUTPUT
-            echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
-            echo "resource_group_name=$RG_NAME" >> $GITHUB_OUTPUT
-          fi
-          
-          # Print confirmation
+          # Print confirmation (using the determined values)
           echo "Using backend infrastructure:"
           echo "Storage Account: $SA_NAME"
           echo "Container: $CONTAINER_NAME"
