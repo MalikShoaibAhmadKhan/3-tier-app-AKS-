@@ -23,6 +23,9 @@ spec:
         syncSecret:
           enabled: true
         enableSecretRotation: true
+        podAnnotations:
+          argocd.argoproj.io/hook: PreSync
+          argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   destination:
     server: https://kubernetes.default.svc
     namespace: csi-secrets-store
@@ -38,11 +41,3 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  health:
-    checks:
-      - type: Pod
-        name: secrets-store-csi-driver
-        namespace: csi-secrets-store
-      - type: Pod
-        name: csi-secrets-store-provider-azure
-        namespace: csi-secrets-store
