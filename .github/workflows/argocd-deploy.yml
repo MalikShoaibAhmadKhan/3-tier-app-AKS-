@@ -72,10 +72,26 @@ jobs:
       # Install Azure Key Vault CSI Driver if not already installed
       - name: Ensure Key Vault CSI Driver is installed
         run: |
+          echo "Checking Argo CD Application Controller status..."
+          kubectl wait --for=condition=available --timeout=60s deployment/argocd-application-controller -n argocd || echo "Warning: Argo CD Application Controller not ready."
+          
+          echo "Applying Key Vault CSI Driver installer manifest..."
           # Apply installer which creates ArgoCD applications
           # Make sure argo-cd/key-vault-csi-driver-installer.yaml points its Applications
           # to the official Helm charts for secrets-store-csi-driver and secrets-store-provider-azure
           kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
+          
+          echo "Fetching details for CSI Driver ArgoCD applications..."
+          sleep 5 # Short delay to allow ArgoCD to process
+          echo "--- Key Vault CSI Driver Application YAML ---"
+          kubectl get application key-vault-csi-driver -n argocd -o yaml || echo "Failed to get CSI driver app YAML"
+          echo "--- Key Vault CSI Driver Application Events ---"
+          kubectl get events -n argocd --field-selector involvedObject.kind=Application,involvedObject.name=key-vault-csi-driver --sort-by='.lastTimestamp' || echo "Failed to get CSI driver app events"
+          echo "--- Key Vault Provider Application YAML ---"
+          kubectl get application key-vault-provider -n argocd -o yaml || echo "Failed to get provider app YAML"
+          echo "--- Key Vault Provider Application Events ---"
+          kubectl get events -n argocd --field-selector involvedObject.kind=Application,involvedObject.name=key-vault-provider --sort-by='.lastTimestamp' || echo "Failed to get provider app events"
+          echo "--- End Application Details ---"
           
           # Wait for ArgoCD applications to sync (up to 5 minutes)
           echo "Waiting for CSI driver ArgoCD applications to sync..."
