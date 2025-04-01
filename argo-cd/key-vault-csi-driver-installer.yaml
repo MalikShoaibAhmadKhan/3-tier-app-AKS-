@@ -38,7 +38,8 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-    healthChecks:
+  health:
+    checks:
       - type: Pod
         name: secrets-store-csi-driver
         namespace: csi-secrets-store
