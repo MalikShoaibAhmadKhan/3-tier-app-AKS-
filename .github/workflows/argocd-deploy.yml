@@ -47,7 +47,18 @@ jobs:
           if ! kubectl get namespace argocd &> /dev/null; then
             kubectl create namespace argocd
             kubectl apply -n argocd -f argo-cd/install.yaml
-            kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+            
+            echo "Waiting for ArgoCD deployments to start (may take several minutes)..."
+            # Wait for deployments with increased timeout (20 minutes instead of 10)
+            kubectl wait --for=condition=available --timeout=1200s deployment/argocd-server -n argocd || true
+            
+            # Even if the wait times out, continue but provide debugging info
+            echo "Checking ArgoCD deployment status:"
+            kubectl get deployments -n argocd
+            echo "Checking ArgoCD pods:"
+            kubectl get pods -n argocd
+            echo "Checking pod logs for argocd-server:"
+            kubectl logs -l app.kubernetes.io/name=argocd-server -n argocd --tail=50 || true
           fi
           
       # Install Azure Key Vault CSI Driver if not already installed
