@@ -81,27 +81,22 @@ jobs:
           # to the official Helm charts for secrets-store-csi-driver and secrets-store-provider-azure
           kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
           
-          echo "Fetching details for CSI Driver ArgoCD applications..."
+          echo "Fetching details for CSI Driver ArgoCD application..."
           sleep 5 # Short delay to allow ArgoCD to process
           echo "--- Key Vault CSI Driver Application YAML ---"
           kubectl get application key-vault-csi-driver -n argocd -o yaml || echo "Failed to get CSI driver app YAML"
           echo "--- Key Vault CSI Driver Application Events ---"
           kubectl get events -n argocd --field-selector involvedObject.kind=Application,involvedObject.name=key-vault-csi-driver --sort-by='.lastTimestamp' || echo "Failed to get CSI driver app events"
-          echo "--- Key Vault Provider Application YAML ---"
-          kubectl get application key-vault-provider -n argocd -o yaml || echo "Failed to get provider app YAML"
-          echo "--- Key Vault Provider Application Events ---"
-          kubectl get events -n argocd --field-selector involvedObject.kind=Application,involvedObject.name=key-vault-provider --sort-by='.lastTimestamp' || echo "Failed to get provider app events"
           echo "--- End Application Details ---"
           
-          # Wait for ArgoCD applications to sync (up to 5 minutes)
-          echo "Waiting for CSI driver ArgoCD applications to sync..."
+          # Wait for ArgoCD application to sync (up to 5 minutes)
+          echo "Waiting for CSI driver ArgoCD application to sync..."
           for i in {1..30}; do
             SYNC_STATUS_CSI=$(kubectl get application -n argocd key-vault-csi-driver -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
-            SYNC_STATUS_PROVIDER=$(kubectl get application -n argocd key-vault-provider -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
-            echo "Sync status (attempt $i/30): CSI Driver: $SYNC_STATUS_CSI, Provider: $SYNC_STATUS_PROVIDER"
+            echo "Sync status (attempt $i/30): CSI Driver: $SYNC_STATUS_CSI"
             
-            if [[ "$SYNC_STATUS_CSI" == "Synced" && "$SYNC_STATUS_PROVIDER" == "Synced" ]]; then
-              echo "Both applications successfully synced!"
+            if [[ "$SYNC_STATUS_CSI" == "Synced" ]]; then
+              echo "Application successfully synced!"
               break
             fi
             sleep 10
@@ -109,19 +104,19 @@ jobs:
           
           # Check if sync was actually successful before proceeding
           FINAL_SYNC_STATUS_CSI=$(kubectl get application -n argocd key-vault-csi-driver -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
-          FINAL_SYNC_STATUS_PROVIDER=$(kubectl get application -n argocd key-vault-provider -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
-          if [[ "$FINAL_SYNC_STATUS_CSI" != "Synced" || "$FINAL_SYNC_STATUS_PROVIDER" != "Synced" ]]; then
-            echo "Error: One or both Key Vault CSI Driver ArgoCD applications failed to sync."
+          if [[ "$FINAL_SYNC_STATUS_CSI" != "Synced" ]]; then
+            echo "Error: Key Vault CSI Driver ArgoCD application failed to sync."
             echo "CSI Driver Status: $FINAL_SYNC_STATUS_CSI"
-            echo "Provider Status: $FINAL_SYNC_STATUS_PROVIDER"
             # Optionally fail the workflow here: exit 1
           fi
           
           # Check for running CSI driver pods as final verification
-          echo "Verifying CSI driver pod status..."
-          # Note: Namespace might be different if overridden in Helm values (default is usually kube-system)
-          kubectl get pods -n kube-system -l app=secrets-store-csi-driver --no-headers=true
-          kubectl get pods -n kube-system -l app=csi-secrets-store-provider-azure --no-headers=true
+          echo "Verifying CSI driver and provider pod status in csi-secrets-store namespace..."
+          # Note: Namespace is now 'csi-secrets-store' based on Application destination
+          # Also, labels might differ depending on the combined chart. We will check generic labels first.
+          kubectl get pods -n csi-secrets-store -l app.kubernetes.io/instance=key-vault-csi-driver --no-headers=true
+          # Add a check for provider pods if the chart labels them separately
+          # kubectl get pods -n csi-secrets-store -l app=csi-secrets-store-provider-azure --no-headers=true
           echo "CSI driver pod verification complete."
           
           # Now wait for the CRD to be available (additional 2 minutes)
@@ -261,12 +256,11 @@ jobs:
           kubectl delete secret secrets-store-inline -n microservices-prod --ignore-not-found=true || true # Adjust namespace if needed
           sleep 5
           
-      - name: Delete Key Vault CSI Driver ArgoCD Apps
+      - name: Delete Key Vault CSI Driver ArgoCD App
         run: |
-          echo "Deleting Key Vault CSI Driver ArgoCD applications..."
+          echo "Deleting Key Vault CSI Driver ArgoCD application..."
           kubectl delete application key-vault-csi-driver -n argocd --ignore-not-found=true
-          kubectl delete application key-vault-provider -n argocd --ignore-not-found=true
-          # Wait for applications to terminate
+          # Wait for application to terminate
           sleep 15
 
       # Optional: Delete the CSI driver resources directly if Applications don't clean up fully
