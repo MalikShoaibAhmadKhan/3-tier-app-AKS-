@@ -74,9 +74,7 @@ jobs:
       # Install Azure Key Vault CSI Driver if not already installed
       - name: Ensure Key Vault CSI Driver is installed
         run: |
-          echo "Checking Argo CD Application Controller status..."
-          kubectl wait --for=condition=available --timeout=60s deployment/argocd-application-controller -n argocd || echo "Warning: Argo CD Application Controller not ready."
-          
+          # Note: Check for argocd-application-controller readiness is handled in the previous ArgoCD install step
           echo "Applying Key Vault CSI Driver installer manifest..."
           # Apply installer which creates ArgoCD applications
           # Make sure argo-cd/key-vault-csi-driver-installer.yaml points its Applications
