@@ -201,11 +201,11 @@ jobs:
           cat aks_resource_group.json
           echo "--- End of aks_resource_group.json ---"
           
-          # Extract values using jq from files, ensuring no extraneous lines
-          KUBE_CLUSTER_NAME=$(jq -r '.value' < aks_cluster_name.json)
+          # Extract values using jq from files, extracting only the last line which contains the JSON
+          KUBE_CLUSTER_NAME=$(tail -1 aks_cluster_name.json | jq -r '.')
           if [ $? -ne 0 ]; then echo "::error::Failed to parse cluster name JSON"; exit 1; fi
           
-          AKS_RESOURCE_GROUP_NAME=$(jq -r '.value' < aks_resource_group.json)
+          AKS_RESOURCE_GROUP_NAME=$(tail -1 aks_resource_group.json | jq -r '.')
           if [ $? -ne 0 ]; then echo "::error::Failed to parse resource group JSON"; exit 1; fi
           
           # Set GitHub outputs
