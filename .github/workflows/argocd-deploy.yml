@@ -169,8 +169,11 @@ jobs:
       # Print ArgoCD server URL
       - name: Print ArgoCD server URL
         run: |
+          echo "Ensuring argocd-server service is type LoadBalancer..."
+          kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}' || echo "Patch command failed, maybe already LoadBalancer?"
+          
           echo "Waiting for ArgoCD server to get external IP..."
-          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/argocd-server -n argocd --timeout=300s || echo "ArgoCD server service not available yet"
+          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/argocd-server -n argocd --timeout=300s || echo "ArgoCD server service not available yet or didn't get an IP"
           
           if [[ $(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
             echo "ArgoCD server URL: https://$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
