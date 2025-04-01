@@ -6,9 +6,9 @@ replicaCount: 1
 frontend:
   name: frontend
   image:
-    repository: frontend
+    repository: ghcr.io/wahaj4311/3-tier-app/frontend
     tag: latest
-    pullPolicy: Never
+    pullPolicy: Always
   service:
     type: ClusterIP
     port: 80
