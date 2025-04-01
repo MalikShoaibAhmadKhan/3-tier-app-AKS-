@@ -74,4 +74,7 @@ node_modules/
 
 # Logs
 *.log
-logs/ 
+logs/
+
+# Argo CD troubleshooting guide
+argocd-troubleshooting.md 
