@@ -222,16 +222,15 @@ jobs:
       - name: Delete ArgoCD Project
         run: |
           echo "Deleting ArgoCD project..."
-          # Assuming project name matches the file name 'project.yaml', need confirmation if different
-          # Using the file is safer if the name isn't fixed, but requires replacing the repo URL again if needed.
-          # Let's delete by name assuming it's 'default' or inferred from project.yaml if possible. 
-          # If project name is defined in project.yaml, might need to parse it or use a known name.
-          # Let's assume the project name defined in argo-cd/project.yaml is 'default' or similar standard name.
-          # If it's custom, this needs adjustment. Trying 'default' first.
-          # Use the fully qualified name for robustness
-          kubectl delete appprojects.argoproj.io default -n argocd --ignore-not-found=true
-          # If the project name is different, we might need to use:
-          # kubectl delete -f argo-cd/project.yaml --ignore-not-found=true
+          # Diagnostic step: Check if the CRD is recognized
+          kubectl get crd appprojects.argoproj.io || echo "AppProject CRD not found (diagnostic)"
+          
+          # Delete using the manifest file directly
+          kubectl delete -f argo-cd/project.yaml -n argocd --ignore-not-found=true
+
+          # Fallback/Alternative (now commented out):
+          # echo "Deleting ArgoCD project by name (fallback method)..."
+          # kubectl delete appprojects.argoproj.io default -n argocd --ignore-not-found=true
           sleep 5
 
       - name: Delete Secret Provider Class
