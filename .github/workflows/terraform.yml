@@ -188,12 +188,9 @@ jobs:
         id: terraform-outputs
         run: |
           cd terraform
-          # Store key outputs as GitHub outputs via temporary files
-          terraform output -raw kubernetes_cluster_name > aks_cluster_name.txt
-          terraform output -raw resource_group_name > aks_resource_group.txt
+          # Store key outputs as GitHub outputs using json and jq
+          KUBE_CLUSTER_NAME=$(terraform output -json kubernetes_cluster_name | jq -r '.value')
+          AKS_RESOURCE_GROUP_NAME=$(terraform output -json resource_group_name | jq -r '.value')
           
-          echo "AKS_CLUSTER_NAME=$(cat aks_cluster_name.txt)" >> $GITHUB_OUTPUT
-          echo "AKS_RESOURCE_GROUP=$(cat aks_resource_group.txt)" >> $GITHUB_OUTPUT
-          
-          # Clean up temporary files
-          rm aks_cluster_name.txt aks_resource_group.txt 
+          echo "AKS_CLUSTER_NAME=$KUBE_CLUSTER_NAME" >> $GITHUB_OUTPUT
+          echo "AKS_RESOURCE_GROUP=$AKS_RESOURCE_GROUP_NAME" >> $GITHUB_OUTPUT 
