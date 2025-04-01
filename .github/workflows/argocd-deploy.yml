@@ -57,11 +57,13 @@ jobs:
             kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
             
             echo "Waiting for ArgoCD deployments to start (may take several minutes)..."
-            # Wait for deployments with increased timeout (20 minutes instead of 10)
-            kubectl wait --for=condition=available --timeout=1200s deployment/argocd-server -n argocd || true
+            # Wait for essential components: server deployment and application-controller statefulset (10 minutes each)
+            kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd || echo "Warning: ArgoCD Server wait timed out."
+            # Use the correct resource type (StatefulSet) for the application controller
+            kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 --timeout=600s statefulset/argocd-application-controller -n argocd || echo "Warning: ArgoCD Application Controller wait timed out."
             
-            # Even if the wait times out, continue but provide debugging info
-            echo "Checking ArgoCD deployment status:"
+            # Even if the wait times out, continue but provide detailed debugging info
+            echo "Checking detailed ArgoCD status:"
             kubectl get deployments -n argocd
             echo "Checking ArgoCD pods:"
             kubectl get pods -n argocd
