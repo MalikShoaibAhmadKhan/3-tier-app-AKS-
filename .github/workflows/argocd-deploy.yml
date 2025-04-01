@@ -64,8 +64,33 @@ jobs:
       # Install Azure Key Vault CSI Driver if not already installed
       - name: Ensure Key Vault CSI Driver is installed
         run: |
+          # Apply installer which creates ArgoCD applications
           kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
-          kubectl wait --for=condition=established --timeout=120s crd/secretproviderclasses.secrets-store.csi.x-k8s.io || echo "CRD already exists"
+          
+          # Wait for ArgoCD applications to sync (up to 5 minutes)
+          echo "Waiting for CSI driver ArgoCD applications to sync..."
+          for i in {1..30}; do
+            SYNC_STATUS_CSI=$(kubectl get application -n argocd key-vault-csi-driver -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
+            SYNC_STATUS_PROVIDER=$(kubectl get application -n argocd key-vault-provider -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
+            echo "Sync status (attempt $i/30): CSI Driver: $SYNC_STATUS_CSI, Provider: $SYNC_STATUS_PROVIDER"
+            
+            if [[ "$SYNC_STATUS_CSI" == "Synced" && "$SYNC_STATUS_PROVIDER" == "Synced" ]]; then
+              echo "Both applications successfully synced!"
+              break
+            fi
+            sleep 10
+          done
+          
+          # Now wait for the CRD to be available (additional 2 minutes)
+          echo "Waiting for Secret Provider Classes CRD to be established..."
+          kubectl wait --for=condition=established --timeout=120s crd/secretproviderclasses.secrets-store.csi.x-k8s.io || echo "CRD wait timed out, checking if it exists"
+          
+          # Check if the CRD exists regardless of the wait result
+          if kubectl get crd secretproviderclasses.secrets-store.csi.x-k8s.io &>/dev/null; then
+            echo "Secret Provider Classes CRD is available"
+          else
+            echo "Warning: Secret Provider Classes CRD is not available yet. Proceeding anyway."
+          fi
           
       # Update secret provider with tenant ID
       - name: Update secret-provider.yaml with tenant ID
