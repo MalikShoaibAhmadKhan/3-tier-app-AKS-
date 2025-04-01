@@ -11,9 +11,9 @@ metadata:
 spec:
   project: default
   source:
-    chart: secrets-store-csi-driver
-    repoURL: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
-    targetRevision: 1.3.0
+    chart: csi-secrets-store-provider-azure
+    repoURL: https://azure.github.io/secrets-store-csi-driver-provider-azure/charts
+    targetRevision: 1.4.0
     helm:
       values: |
         linux:
@@ -30,22 +30,18 @@ spec:
     automated:
       prune: true
       selfHeal: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: key-vault-provider
-  namespace: argocd
-spec:
-  project: default
-  source:
-    chart: csi-secrets-store-provider-azure
-    repoURL: https://azure.github.io/secrets-store-csi-driver-provider-azure/charts
-    targetRevision: 1.4.0
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: csi-secrets-store
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+    healthChecks:
+      - type: Pod
+        name: secrets-store-csi-driver
+        namespace: csi-secrets-store
+      - type: Pod
+        name: csi-secrets-store-provider-azure
+        namespace: csi-secrets-store
