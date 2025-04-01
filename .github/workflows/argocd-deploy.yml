@@ -13,13 +13,20 @@ on:
         default: 'all'
         type: choice
         options: [all, dev, prod]
+      action:
+        description: 'Action to perform: deploy or destroy'
+        required: true
+        default: 'deploy'
+        type: choice
+        options: [deploy, destroy]
 
 env:
   ENVIRONMENT: ${{ inputs.environment || 'all' }}
+  ACTION: ${{ inputs.action || 'deploy' }}
 
 jobs:
   deploy-argocd-apps:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    if: (github.event.workflow_run.conclusion == 'success' && github.event_name == 'workflow_run') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -46,7 +53,8 @@ jobs:
         run: |
           if ! kubectl get namespace argocd &> /dev/null; then
             kubectl create namespace argocd
-            kubectl apply -n argocd -f argo-cd/install.yaml
+            # Apply official stable manifest directly from Argo CD repo
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
             
             echo "Waiting for ArgoCD deployments to start (may take several minutes)..."
             # Wait for deployments with increased timeout (20 minutes instead of 10)
@@ -65,6 +73,8 @@ jobs:
       - name: Ensure Key Vault CSI Driver is installed
         run: |
           # Apply installer which creates ArgoCD applications
+          # Make sure argo-cd/key-vault-csi-driver-installer.yaml points its Applications
+          # to the official Helm charts for secrets-store-csi-driver and secrets-store-provider-azure
           kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
           
           # Wait for ArgoCD applications to sync (up to 5 minutes)
@@ -80,6 +90,23 @@ jobs:
             fi
             sleep 10
           done
+          
+          # Check if sync was actually successful before proceeding
+          FINAL_SYNC_STATUS_CSI=$(kubectl get application -n argocd key-vault-csi-driver -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
+          FINAL_SYNC_STATUS_PROVIDER=$(kubectl get application -n argocd key-vault-provider -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "NotFound")
+          if [[ "$FINAL_SYNC_STATUS_CSI" != "Synced" || "$FINAL_SYNC_STATUS_PROVIDER" != "Synced" ]]; then
+            echo "Error: One or both Key Vault CSI Driver ArgoCD applications failed to sync."
+            echo "CSI Driver Status: $FINAL_SYNC_STATUS_CSI"
+            echo "Provider Status: $FINAL_SYNC_STATUS_PROVIDER"
+            # Optionally fail the workflow here: exit 1
+          fi
+          
+          # Check for running CSI driver pods as final verification
+          echo "Verifying CSI driver pod status..."
+          # Note: Namespace might be different if overridden in Helm values (default is usually kube-system)
+          kubectl get pods -n kube-system -l app=secrets-store-csi-driver --no-headers=true
+          kubectl get pods -n kube-system -l app=csi-secrets-store-provider-azure --no-headers=true
+          echo "CSI driver pod verification complete."
           
           # Now wait for the CRD to be available (additional 2 minutes)
           echo "Waiting for Secret Provider Classes CRD to be established..."
@@ -154,4 +181,93 @@ jobs:
             if [[ $(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
               echo "Prod Application URL: http://$(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
             fi
-          fi 
+          fi
+
+  destroy-argocd-resources:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    needs: [] # Make independent or dependent if needed
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ secrets.AKS_RESOURCE_GROUP || 'aks-gitops-rg' }} \
+            --name ${{ secrets.AKS_CLUSTER_NAME || 'aks-gitops-cluster' }}
+
+      - name: Delete ArgoCD Applications (Dev/Prod)
+        run: |
+          echo "Deleting ArgoCD applications..."
+          if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "dev" ]]; then
+            kubectl delete application dev -n argocd --ignore-not-found=true
+          fi
+          if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "prod" ]]; then
+            kubectl delete application prod -n argocd --ignore-not-found=true
+          fi
+          # Add a small wait for applications to be deleted before deleting the project
+          sleep 15
+
+      - name: Delete ArgoCD Project
+        run: |
+          echo "Deleting ArgoCD project..."
+          # Assuming project name matches the file name 'project.yaml', need confirmation if different
+          # Using the file is safer if the name isn't fixed, but requires replacing the repo URL again if needed.
+          # Let's delete by name assuming it's 'default' or inferred from project.yaml if possible. 
+          # If project name is defined in project.yaml, might need to parse it or use a known name.
+          # Let's assume the project name defined in argo-cd/project.yaml is 'default' or similar standard name.
+          # If it's custom, this needs adjustment. Trying 'default' first.
+          kubectl delete appproject default -n argocd --ignore-not-found=true
+          # If the project name is different, we might need to use:
+          # kubectl delete -f argo-cd/project.yaml --ignore-not-found=true
+          sleep 5
+
+      - name: Delete Secret Provider Class
+        run: |
+          echo "Deleting SecretProviderClass..."
+          kubectl delete -f argo-cd/secret-provider.yaml --ignore-not-found=true
+          # Also delete the related secret if it exists (created by the provider class)
+          kubectl delete secret secrets-store-inline -n microservices-dev --ignore-not-found=true || true # Adjust namespace if needed
+          kubectl delete secret secrets-store-inline -n microservices-prod --ignore-not-found=true || true # Adjust namespace if needed
+          sleep 5
+          
+      - name: Delete Key Vault CSI Driver ArgoCD Apps
+        run: |
+          echo "Deleting Key Vault CSI Driver ArgoCD applications..."
+          kubectl delete application key-vault-csi-driver -n argocd --ignore-not-found=true
+          kubectl delete application key-vault-provider -n argocd --ignore-not-found=true
+          # Wait for applications to terminate
+          sleep 15
+
+      # Optional: Delete the CSI driver resources directly if Applications don't clean up fully
+      # - name: Delete Key Vault CSI Driver Components (Fallback)
+      #   run: |
+      #     echo "Attempting direct deletion of CSI driver components..."
+      #     kubectl delete -f argo-cd/key-vault-csi-driver-installer.yaml --ignore-not-found=true
+
+      - name: Delete ArgoCD Installation
+        run: |
+          echo "Deleting ArgoCD namespace..."
+          kubectl delete namespace argocd --ignore-not-found=true
+          echo "Waiting for ArgoCD namespace to terminate..."
+          # Wait for namespace deletion, timeout after 5 minutes
+          timeout 300 bash -c 'while kubectl get namespace argocd &> /dev/null; do sleep 10; done' || echo "Namespace argocd still terminating or does not exist."
+
+      # Optional step: Delete application namespaces if they should also be removed
+      # - name: Delete Application Namespaces (Optional)
+      #   if: env.ENVIRONMENT == 'all' # Only run if cleaning up everything
+      #   run: |
+      #     echo "Deleting application namespaces..."
+      #     kubectl delete namespace microservices-dev --ignore-not-found=true
+      #     kubectl delete namespace microservices-prod --ignore-not-found=true 
