@@ -188,9 +188,25 @@ jobs:
         id: terraform-outputs
         run: |
           cd terraform
-          # Store key outputs as GitHub outputs using json and jq
-          KUBE_CLUSTER_NAME=$(terraform output -json kubernetes_cluster_name | jq -r '.value')
-          AKS_RESOURCE_GROUP_NAME=$(terraform output -json resource_group_name | jq -r '.value')
+          # Store json output in temp files first
+          terraform output -json kubernetes_cluster_name > aks_cluster_name.json
+          terraform output -json resource_group_name > aks_resource_group.json
           
+          # Check exit codes (optional but good practice)
+          if [ $? -ne 0 ]; then echo "::error::Failed to get resource_group_name output"; exit 1; fi
+          cat aks_cluster_name.json # Debugging: view the file content
+          cat aks_resource_group.json # Debugging: view the file content
+          
+          # Extract values using jq from files
+          KUBE_CLUSTER_NAME=$(jq -r '.value' aks_cluster_name.json)
+          if [ $? -ne 0 ]; then echo "::error::Failed to parse cluster name JSON"; exit 1; fi
+          
+          AKS_RESOURCE_GROUP_NAME=$(jq -r '.value' aks_resource_group.json)
+          if [ $? -ne 0 ]; then echo "::error::Failed to parse resource group JSON"; exit 1; fi
+          
+          # Set GitHub outputs
           echo "AKS_CLUSTER_NAME=$KUBE_CLUSTER_NAME" >> $GITHUB_OUTPUT
-          echo "AKS_RESOURCE_GROUP=$AKS_RESOURCE_GROUP_NAME" >> $GITHUB_OUTPUT 
+          echo "AKS_RESOURCE_GROUP=$AKS_RESOURCE_GROUP_NAME" >> $GITHUB_OUTPUT
+          
+          # Clean up temporary files
+          rm aks_cluster_name.json aks_resource_group.json 
