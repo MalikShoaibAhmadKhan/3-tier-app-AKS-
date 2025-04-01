@@ -228,7 +228,8 @@ jobs:
           # If project name is defined in project.yaml, might need to parse it or use a known name.
           # Let's assume the project name defined in argo-cd/project.yaml is 'default' or similar standard name.
           # If it's custom, this needs adjustment. Trying 'default' first.
-          kubectl delete appproject default -n argocd --ignore-not-found=true
+          # Use the fully qualified name for robustness
+          kubectl delete appprojects.argoproj.io default -n argocd --ignore-not-found=true
           # If the project name is different, we might need to use:
           # kubectl delete -f argo-cd/project.yaml --ignore-not-found=true
           sleep 5
