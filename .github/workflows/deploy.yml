@@ -153,6 +153,24 @@ jobs:
           kubectl apply -f argo-cd/install.yaml
           kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
 
+      - name: Install NGINX Ingress Controller
+        run: |
+          # Add the ingress-nginx repository
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          
+          # Install the ingress-nginx controller
+          helm install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --wait
+          
+          # Wait for the ingress controller to be ready
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=90s
+
       - name: Install Azure Key Vault CSI Driver
         run: |
           # Apply the Key Vault CSI Driver installer
@@ -178,11 +196,12 @@ jobs:
           # Print ArgoCD server URL
           echo "ArgoCD server URL: $(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
           
-          # Print application URL (once available)
-          echo "Waiting for frontend service to get external IP..."
-          kubectl wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/frontend --timeout=300s || echo "Frontend service not available yet"
+          # Get the ingress controller IP
+          INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Ingress Controller IP: $INGRESS_IP"
           
-          # Print the URL if available
-          if [[ $(kubectl get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
-            echo "Application URL: http://$(kubectl get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-          fi 
+          # Print application URLs
+          echo "Application URLs:"
+          echo "Frontend: http://$INGRESS_IP/frontend/"
+          echo "Service A: http://$INGRESS_IP/api/service-a/"
+          echo "Service B: http://$INGRESS_IP/api/service-b/" 

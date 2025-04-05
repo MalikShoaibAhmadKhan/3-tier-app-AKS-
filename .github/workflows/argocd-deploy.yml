@@ -71,6 +71,30 @@ jobs:
             kubectl logs -l app.kubernetes.io/name=argocd-server -n argocd --tail=50 || true
           fi
           
+      # Install NGINX Ingress Controller if not already installed
+      - name: Ensure NGINX Ingress Controller is installed
+        run: |
+          if ! kubectl get namespace ingress-nginx &> /dev/null; then
+            # Add the ingress-nginx repository
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+            helm repo update
+            
+            # Install the ingress-nginx controller
+            helm install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx \
+              --create-namespace \
+              --wait
+            
+            # Wait for the ingress controller to be ready
+            kubectl wait --namespace ingress-nginx \
+              --for=condition=ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=90s
+          else
+            echo "Ingress NGINX namespace already exists, checking controller status..."
+            kubectl get pods -n ingress-nginx
+          fi
+          
       # Install Azure Key Vault CSI Driver if not already installed
       - name: Ensure Key Vault CSI Driver is installed
         run: |
@@ -179,22 +203,27 @@ jobs:
       # Print application URLs
       - name: Print application URLs
         run: |
+          # Get the ingress controller IP
+          echo "Waiting for ingress controller to get external IP..."
+          kubectl wait --namespace ingress-nginx \
+            --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/ingress-nginx-controller \
+            --timeout=300s || echo "Ingress controller service not available yet"
+          
+          INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Ingress Controller IP: $INGRESS_IP"
+          
           if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "dev" ]]; then
-            echo "Waiting for dev frontend service to get external IP..."
-            kubectl -n microservices-dev wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/frontend --timeout=300s || echo "Dev frontend service not available yet"
-            
-            if [[ $(kubectl -n microservices-dev get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
-              echo "Dev Application URL: http://$(kubectl -n microservices-dev get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-            fi
+            echo "Dev Application URLs:"
+            echo "Frontend: http://$INGRESS_IP/frontend/"
+            echo "Service A: http://$INGRESS_IP/api/service-a/"
+            echo "Service B: http://$INGRESS_IP/api/service-b/"
           fi
           
           if [[ "${{ env.ENVIRONMENT }}" == "all" || "${{ env.ENVIRONMENT }}" == "prod" ]]; then
-            echo "Waiting for prod frontend service to get external IP..."
-            kubectl -n microservices-prod wait --for=jsonpath='{.status.loadBalancer.ingress[0].ip}' service/frontend --timeout=300s || echo "Prod frontend service not available yet"
-            
-            if [[ $(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null) ]]; then
-              echo "Prod Application URL: http://$(kubectl -n microservices-prod get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-            fi
+            echo "Prod Application URLs:"
+            echo "Frontend: http://$INGRESS_IP/frontend/"
+            echo "Service A: http://$INGRESS_IP/api/service-a/"
+            echo "Service B: http://$INGRESS_IP/api/service-b/"
           fi
 
   destroy-argocd-resources:

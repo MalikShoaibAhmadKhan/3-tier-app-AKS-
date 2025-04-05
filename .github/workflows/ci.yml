@@ -95,16 +95,53 @@ jobs:
         with:
           version: v3.10.0
           
+      - name: Add ingress-nginx repository
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          
       - name: Lint Helm chart
         run: helm lint ./helm-chart
         
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         
-      - name: Validate Helm template
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.5.0
+        
+      - name: Install ingress-nginx
         run: |
-          helm template ./helm-chart -f ./helm-chart/values-${{ env.ENVIRONMENT == 'prod' && 'prod' || 'local' }}.yaml > rendered.yaml
-          kubectl create --dry-run=client -f rendered.yaml
+          helm install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --wait
+          
+      - name: Validate Helm template with ingress
+        run: |
+          # Render the application templates
+          helm template ./helm-chart \
+            -f ./helm-chart/values-${{ env.ENVIRONMENT == 'prod' && 'prod' || 'local' }}.yaml \
+            --namespace microservices-dev \
+            > rendered.yaml
+          
+          # Create the namespace
+          kubectl create namespace microservices-dev
+          
+          # Validate the rendered templates
+          kubectl apply --dry-run=client -f rendered.yaml
+          
+          # Validate ingress configuration
+          INGRESS_CLASS=$(kubectl get ingressclass nginx -o jsonpath='{.metadata.name}' || echo "")
+          if [ -z "$INGRESS_CLASS" ]; then
+            echo "Error: nginx IngressClass not found"
+            exit 1
+          fi
+          
+          # Validate ingress controller is ready
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=90s
 
   update-version:
     needs: [build-and-push, validate-helm]
