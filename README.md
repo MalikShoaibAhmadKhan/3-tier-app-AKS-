@@ -144,30 +144,117 @@ After completing the one-time setup, go to your forked repository on GitHub -> S
 
 ---
 
-## ▶️ Automated Deployment (CI/CD)
+## ▶️ Automated Deployment for Development Environment
 
-With prerequisites met and secrets configured, the deployment is fully automated via GitHub Actions.
+With prerequisites met and secrets configured, the deployment process for the **development environment** uses GitHub Actions workflows. There are three main workflows you'll interact with:
 
-**What the Workflow Does:**
+1. **CI Pipeline** (`ci.yml`) - Builds and validates application components
+2. **Deploy to AKS** (`deploy.yml`) - Manages infrastructure and bootstraps tools  
+3. **Deploy ArgoCD Applications** (`argocd-deploy.yml`) - Deploys applications via ArgoCD
 
-1.  **Build & Push:** Builds application Docker images and pushes them to GitHub Container Registry.
-2.  **Terraform Apply (Main):** Connects to the Azure Terraform backend (created during setup) and uses the main Terraform configuration (`terraform/`) to provision/update Azure infrastructure (AKS Cluster, Key Vault, etc.).
-3.  **ArgoCD & Tools Installation:** Installs ArgoCD, NGINX Ingress Controller, and Azure Key Vault CSI driver onto the AKS cluster.
-4.  **Application Deployment:** Configures ArgoCD applications to deploy your microservices using the Helm chart.
+### Development Environment Considerations
 
-**Trigger the Workflow:**
+For development environments:
+* The AKS cluster is assumed to exist already (created outside of these workflows or manually)
+* Workflow execution is primarily manual to give you control over the deployment process
+* The primary focus is on rapid iteration and testing, not infrastructure provisioning
 
-*   **Option 1: GitHub UI**
-    1.  Go to the "Actions" tab in your forked repository.
-    2.  Select the "**Deploy ArgoCD Applications**" workflow (or potentially "**Deploy to AKS**" depending on which one orchestrates the full process). *Please verify the correct workflow name.*
-    3.  Click "Run workflow", choose the environment (e.g., `all` or `prod`), ensure the action is `deploy`, and click "Run workflow".
-*   **Option 2: GitHub CLI** (Ensure you target the correct workflow name)
-    ```bash
-    # Verify workflow name first using: gh workflow list
-    gh workflow run "Deploy ArgoCD Applications" -f environment=all -f action=deploy
-    ```
+### When to Run Each Workflow in Development
 
-Monitor the workflow progress in the Actions tab. It might take 15-30 minutes for the first run.
+Here's a clear breakdown of when to use each workflow for development:
+
+#### 1. CI Pipeline Workflow (`ci.yml`)
+**Purpose:** Builds Docker images, validates Helm charts, and updates image tags in the values file
+
+**When to run:**
+* After making changes to application code (frontend, service-a, service-b)
+* After modifying the Helm chart
+* Before deploying to check that everything builds correctly
+
+**How it's triggered:**
+* Automatically on push to `dev` branch
+* Manually via GitHub UI: Actions → CI Pipeline → Run workflow → environment=dev
+
+#### 2. Deploy to AKS Workflow (`deploy.yml`)
+**Purpose:** For dev environments, this workflow primarily builds images and runs `terraform plan` without applying changes.
+
+**When to run:**
+* When you need to validate infrastructure changes without applying them
+* When you want to build and push images in a workflow that doesn't automatically update ArgoCD
+
+**How it's triggered:**
+* Manually via GitHub UI: Actions → Deploy to AKS → Run workflow → environment=dev
+
+> **Note:** For development, this workflow doesn't create AKS clusters or apply Terraform changes. It simply builds images and validates infrastructure configuration.
+
+#### 3. Deploy ArgoCD Applications Workflow (`argocd-deploy.yml`)
+**Purpose:** This is your primary deployment workflow. It ensures ArgoCD is installed and properly configured on your cluster, then deploys your application manifests.
+
+**When to run:**
+* After the CI Pipeline has successfully built your images
+* When you want to deploy or update your application in the dev environment
+* When you want to apply changes to your Kubernetes manifests
+
+**How it's triggered:**
+* Manually via GitHub UI: Actions → Deploy ArgoCD Applications → Run workflow → environment=dev, action=deploy
+* Automatically after successful completion of other workflows (optional configuration)
+
+**What it does:**
+* Connects to your existing AKS cluster
+* Ensures ArgoCD, NGINX Ingress, and Azure Key Vault CSI Driver are installed
+* Applies the ArgoCD Application manifest for the dev environment
+* Monitors the deployment until it completes
+
+### Development Workflow - Practical Execution Sequence
+
+For a typical development cycle:
+
+1. **Make code changes** to your application or Helm chart
+2. **Push changes** to your repository (to the `dev` branch)
+3. **CI Pipeline runs automatically** to build and validate (or run it manually)
+4. **Deploy to ArgoCD** by running the `argocd-deploy.yml` workflow with environment=dev
+
+### Workflow Execution Overview for Development
+
+| Step | Which Workflow | What It Does |
+|------|---------------|--------------|
+| 1 | **CI Pipeline** (`ci.yml`) | Builds & pushes Docker images, updates image tags in values file, validates Helm chart |
+| 2 | **Deploy ArgoCD Applications** (`argocd-deploy.yml`) | Ensures ArgoCD/tools are installed, deploys application via ArgoCD |
+| Optional | **Deploy to AKS** (`deploy.yml`) | For dev: Builds images, runs terraform plan (validation only) |
+
+**Remember:** The development environment assumes you already have a working AKS cluster where the applications will be deployed. The ArgoCD deployment workflow ensures the necessary components (ArgoCD, Ingress, CSI Driver) are installed on this existing cluster.
+
+## 🧪 Development Workflow - Quick Reference
+
+For those working in the development environment, here's a straightforward guide on which workflow to run and when:
+
+### Step 1: Build and Push Images (When you make code changes)
+**Run the "CI Pipeline" workflow (`ci.yml`)**
+* This workflow builds your Docker images and validates the Helm chart
+* **When to run:** After making changes to application code or Helm chart
+* **Trigger:** Automatically runs on push to `dev` branch OR can be run manually
+* **Manual trigger:** GitHub UI → Actions → CI Pipeline → Run workflow → Input: environment=dev
+
+### Step 2: Deploy Application to Dev Environment
+**Run the "Deploy ArgoCD Applications" workflow (`argocd-deploy.yml`)**
+* This workflow deploys your application via ArgoCD
+* **When to run:** After Step 1 completes OR when you want to update the deployed application
+* **Inputs:** 
+  * environment: `dev`
+  * action: `deploy`
+* **Manual trigger:** GitHub UI → Actions → Deploy ArgoCD Applications → Run workflow
+
+### Workflow Execution Overview for Development
+
+| When to Run | Which Workflow | What It Does |
+|-------------|---------------|--------------|
+| After code changes | **CI Pipeline** (`ci.yml`) | Builds & pushes Docker images, updates image tags in values file, validates Helm chart |
+| After CI completes | **Deploy ArgoCD Applications** (`argocd-deploy.yml`) | Ensures ArgoCD/tools are installed, deploys application via ArgoCD |
+| When destroying the dev environment | **Deploy ArgoCD Applications** (`argocd-deploy.yml`) with action=destroy | Removes ArgoCD applications and related resources |
+
+> **Important Note:** The "Deploy to AKS" workflow (`deploy.yml`) with environment=dev is typically NOT needed for development work as it only builds images and runs `terraform plan`. Use the CI Pipeline workflow instead for building images in development.
+
+**Remember:** The development environment assumes you already have a working AKS cluster where the applications will be deployed. The deploy workflow ensures the necessary components (ArgoCD, Ingress, CSI Driver) are installed on this existing cluster.
 
 ---
 
@@ -234,9 +321,9 @@ graph TD
             NSG[Network Security Group]
             subgraph Subnet
                 AzureLB --> AKSCluster{AKS Cluster}
+                    end
+                end
             end
-        end
-    end
 
     subgraph AKSCluster
         Ingress[NGINX Ingress Controller]
@@ -298,7 +385,7 @@ If the application is not accessible:
    ```
 
    c. Check ingress rules:
-   ```bash
+```bash
    kubectl get ingress -n microservices-dev
    ```
 
@@ -386,7 +473,7 @@ To remove all resources created by this setup:
         cd ../..
         ```
     4.  **Delete Azure Service Principal (Optional):**
-        ```bash
+   ```bash
         # Find the SP ID (if you don't have it)
         az ad sp list --display-name kubemicrodemo-sp-<timestamp> --query "[].id" -o tsv
         # Delete using the ID
