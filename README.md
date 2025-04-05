@@ -1,6 +1,72 @@
 # GitOps Deployment with ArgoCD on Azure Kubernetes Service (AKS)
 
-This repository demonstrates how to implement GitOps using ArgoCD on Azure Kubernetes Service (AKS). It provides a practical example of automating deployments to AKS using GitOps principles where your Git repository is the single source of truth.
+👋 Welcome! This repository demonstrates a complete GitOps deployment pipeline using ArgoCD on Azure Kubernetes Service (AKS).
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/wahaj4311/3-tier-app.git
+cd 3-tier-app
+
+# 2. Perform Prerequisites (see section below)
+# Includes:
+# - Installing tools (Azure CLI, kubectl, Terraform)
+# - Logging into Azure
+# - Creating Azure Service Principal & extracting credentials
+# - Running the ONE-TIME Terraform bootstrap to create state storage
+# - Setting up ALL required GitHub secrets (SP creds + TF backend names)
+
+# 3. Deploy using GitHub Actions
+# Once prerequisites are met, the CI pipeline handles the rest:
+# - Connects to TF backend storage
+# - Creates AKS cluster & other Azure resources (using Terraform)
+# - Installs and configures ArgoCD
+# - Deploys the application
+# Trigger the workflow:
+# Just click "Actions" tab in the repository and run "Deploy ArgoCD Applications" workflow
+# Or use GitHub CLI:
+gh workflow run "Deploy ArgoCD Applications" -f environment=all -f action=deploy
+
+# 4. Get your application URLs
+# Get ingress IP for the application
+export INGRESS_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "Application URLs:"
+echo "Frontend: http://$INGRESS_IP/frontend/"
+echo "Service A: http://$INGRESS_IP/api/service-a/"
+echo "Service B: http://$INGRESS_IP/api/service-b/"
+
+# 5. Access ArgoCD Dashboard
+export ARGOCD_IP=$(kubectl get svc -n argocd argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+echo "ArgoCD UI: https://$ARGOCD_IP"
+echo "Username: admin"
+echo "Get password with:"
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+## 🎯 What's Included?
+
+- **Modern Web Application**: React frontend + Node.js microservices + PostgreSQL
+- **GitOps with ArgoCD**: Automated deployments from Git to Kubernetes
+- **Azure Integration**: AKS + Key Vault for secrets
+- **CI/CD**: Complete GitHub Actions pipelines
+- **Infrastructure as Code**: Azure resources (AKS, Key Vault etc.) managed via Terraform
+- **Security**: Proper secret management and network policies
+
+## 📚 Full Documentation
+
+1. [Prerequisites](#-prerequisites)
+2. [Automated Deployment (CI/CD)](#5-automated-deployment-with-github-actions)
+3. [Manual Deployment (Optional)](#6-manual-deployment-guide)
+4. [Architecture](#-architecture-overview)
+5. [Troubleshooting](#quick-troubleshooting-guide)
+6. [Cleanup](#cleanup)
+
+## ❓ Need Help?
+
+- 🐛 Found a bug? [Open an issue](https://github.com/wahaj4311/3-tier-app/issues)
+- 🤝 Want to contribute? [Check our contributing guide](CONTRIBUTING.md)
+- 💬 Questions? [Start a discussion](https://github.com/wahaj4311/3-tier-app/discussions)
 
 ## 🎯 What You'll Build
 
@@ -146,12 +212,79 @@ flowchart TB
 
 ## ✅ Prerequisites
 
-Before you begin, ensure you have:
-- Azure Subscription (free tier works for this demo)
-- GitHub account
-- Azure CLI installed (`az --version`)
-- kubectl installed (`kubectl version`)
-- Terraform installed (`terraform --version`)
+Before you begin, you'll need:
+
+### 1. Azure Account & Tools
+- Azure Subscription ([Get a free account](https://azure.microsoft.com/free/))
+- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) installed
+  ```bash
+  # Verify installation
+  az --version
+  ```
+
+### 2. Development Tools
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) - Kubernetes command-line tool
+  ```bash
+  # Verify installation
+  kubectl version --client
+  ```
+- [Terraform](https://www.terraform.io/downloads.html) - Infrastructure as Code
+  ```bash
+  # Verify installation
+  terraform --version
+  ```
+- [GitHub CLI](https://cli.github.com/) (optional, for easy workflow triggers)
+  ```bash
+  # Verify installation
+  gh --version
+  ```
+
+### 3. GitHub Setup
+1. Fork this repository
+2. Add the following secrets in your GitHub repository (Settings → Secrets → Actions):
+   - `AZURE_CLIENT_ID`: Service principal client ID
+   - `AZURE_CLIENT_SECRET`: Service principal secret
+   - `AZURE_TENANT_ID`: Azure tenant ID
+   - `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
+   - `TERRAFORM_STORAGE_RG`: Resource group for Terraform state
+   - `TERRAFORM_STORAGE_ACCOUNT`: Storage account name
+   - `TERRAFORM_CONTAINER`: Storage container name
+   - `DB_USERNAME`: Database username
+   - `DB_PASSWORD`: Database password
+   - `AKS_RESOURCE_GROUP`: Resource group for AKS (default: aks-gitops-rg)
+   - `AKS_CLUSTER_NAME`: AKS cluster name (default: aks-gitops-cluster)
+
+### 4. Local Environment
+```bash
+# 1. Login to Azure
+az login
+
+# 2. Create service principal (save the output!)
+# The output is a JSON object. Store it for the next step.
+az ad sp create-for-rbac --name "kubemicrodemo-sp" \
+  --role contributor \
+  --scopes /subscriptions/<your-subscription-id> \
+  --sdk-auth
+
+# 3. Extract credentials from the output (requires jq)
+# Make sure jq is installed (e.g., sudo apt-get install jq)
+# Replace the example JSON with the actual output from the previous command
+export SP_OUTPUT='{ ... JSON output from az ad sp create-for-rbac ... }'
+
+export AZURE_CLIENT_ID=$(echo $SP_OUTPUT | jq -r .clientId)
+export AZURE_CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r .clientSecret)
+export AZURE_TENANT_ID=$(echo $SP_OUTPUT | jq -r .tenantId)
+
+echo "AZURE_CLIENT_ID: $AZURE_CLIENT_ID"
+echo "AZURE_CLIENT_SECRET: $AZURE_CLIENT_SECRET"
+echo "AZURE_TENANT_ID: $AZURE_TENANT_ID"
+# Now add these values as GitHub Secrets
+
+# NOTE: Terraform backend storage is created via bootstrap Terraform code.
+# See Step-by-Step Guide below.
+```
+
+Now you're ready to proceed with the [deployment](#-quick-start)!
 
 ## 📁 Repository Structure
 
@@ -199,28 +332,52 @@ Add the following secrets to your GitHub repository:
 az login
 
 # Create service principal
+# Save the JSON output, you'll need it for GitHub Secrets
    az ad sp create-for-rbac --name "kubemicrodemo-sp" --role contributor --scopes /subscriptions/<subscription-id> --sdk-auth
+
+# Example using jq to extract values (optional):
+# export SP_OUTPUT='paste_json_output_here'
+# echo $SP_OUTPUT | jq -r .clientId
+# echo $SP_OUTPUT | jq -r .clientSecret
+# echo $SP_OUTPUT | jq -r .tenantId
    ```
 
 Take note of the output, which will contain the client ID, client secret, and tenant ID needed for GitHub secrets.
 
-### 4. Set up Terraform State Storage
+### 4. Bootstrap Terraform Backend Storage (One-time Setup)
 
-   ```bash
-   # Create resource group
-   az group create --name kubemicrodemo-terraform-storage-rg --location eastus
-   
-   # Create storage account
-az storage account create \
-  --resource-group kubemicrodemo-terraform-storage-rg \
-  --name tfstatekubemicro \
-  --sku Standard_LRS \
-  --encryption-services blob
-   
-   # Create container
-az storage container create \
-  --name tfstate \
-  --account-name tfstatekubemicro
+Before running the main deployment pipeline, you need to create the Azure Storage resources for the Terraform remote state. This is done using a separate Terraform configuration.
+
+```bash
+# Navigate to the bootstrap directory
+cd terraform/bootstrap
+
+# Initialize Terraform (uses local state initially)
+# Provide your Azure credentials when prompted or set them as environment variables
+# (ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID)
+terraform init
+
+# Plan the bootstrap resources
+terraform plan -out=bootstrap.tfplan \
+  -var="client_id=<your_azure_client_id>" \
+  -var="client_secret=<your_azure_client_secret>" \
+  -var="tenant_id=<your_azure_tenant_id>" \
+  -var="subscription_id=<your_azure_subscription_id>" \
+  -var="location=eastus" # Optional: Change location if needed
+
+# Apply the bootstrap plan to create the storage
+terraform apply bootstrap.tfplan
+
+# IMPORTANT: After this runs successfully, the required storage account
+# ('tfstatekubemicro') and container ('tfstate') will exist in Azure.
+# You also need to add the created Resource Group name ('kubemicrodemo-terraform-storage-rg'), 
+# Storage Account Name, and Container Name to your GitHub Secrets:
+# - TERRAFORM_STORAGE_RG: kubemicrodemo-terraform-storage-rg
+# - TERRAFORM_STORAGE_ACCOUNT: tfstatekubemicro
+# - TERRAFORM_CONTAINER: tfstate
+
+# Navigate back to the root directory
+cd ../..
 ```
 
 ### 5. Update Repository Configuration
@@ -253,16 +410,16 @@ serviceB:
 Once you've set up the GitHub secrets and updated the configuration, push your changes to the main branch. The GitHub Actions workflow will:
 
 1. Build and push Docker images to GitHub Container Registry
-2. Deploy infrastructure with Terraform
+2. Deploy infrastructure (AKS, Key Vault, etc.) with Terraform
 3. Install ArgoCD on the AKS cluster
 4. Install the Azure Key Vault CSI Driver
 5. Deploy the application with ArgoCD
-
-   ```bash
+   
+```bash
 git add .
 git commit -m "Initial setup for GitOps deployment"
 git push
-   ```
+```
 
 ### 7. Manual Deployment Guide
 
@@ -363,67 +520,86 @@ After deployment, you can access the following services:
    
    # Access URLs
    echo "Frontend UI: http://$INGRESS_IP/frontend/"
-   echo "Service A API: http://$INGRESS_IP/api/service-a/data"
-   echo "Service B API: http://$INGRESS_IP/api/service-b/data"
+   echo "Service A API: http://$INGRESS_IP/api/service-a/"
+   echo "Service B API: http://$INGRESS_IP/api/service-b/"
    ```
 
 2. **ArgoCD Dashboard**:
    ```bash
    # Get ArgoCD server external IP
    export ARGOCD_IP=$(kubectl get svc -n argocd argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-   echo "ArgoCD UI: http://$ARGOCD_IP"
-   
-   # Get initial admin password
-   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+   echo "ArgoCD UI: https://$ARGOCD_IP"
    ```
-   Default credentials:
    - Username: `admin`
-   - Password: Use the output from the command above
+   - Get password with: 
+     ```bash
+     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+     ```
 
    Alternatively, you can use port forwarding to access ArgoCD locally:
    ```bash
    kubectl port-forward svc/argocd-server -n argocd 8080:443
-   # Access ArgoCD at http://localhost:8080
+   # Then access ArgoCD at: https://localhost:8080
    ```
 
 3. **Service Architecture**:
-   - All application services are exposed through the Ingress Controller
+   - All application services are exposed through the NGINX Ingress Controller
    - Services use `externalTrafficPolicy: Local` for optimal routing and client source IP preservation
    - Internal services (postgres, etc.) are only accessible within the cluster
-   - All external traffic is routed through the ingress-nginx controller with TLS termination
+   - All external traffic is routed through the ingress-nginx controller
 
-4. **Verifying Service Status**:
+4. **Quick Troubleshooting Guide**:
+
+   If the application is not accessible:
+
+   a. Check ingress controller status:
    ```bash
-   # Check ingress-nginx service (provides external access)
-   kubectl get svc -n ingress-nginx
-
-   # Check application services
-   kubectl get svc -n microservices-demo
-
-   # Check ArgoCD service
-   kubectl get svc -n argocd
+   kubectl get pods -n ingress-nginx
+   kubectl get svc -n ingress-nginx ingress-nginx-controller
    ```
 
-5. **Monitoring Service Health**:
+   b. Verify application pods:
    ```bash
-   # Check pods status
-   kubectl get pods -n microservices-demo
-
-   # Check ingress configuration
-   kubectl get ingress -n microservices-demo
-
-   # View service logs (examples)
-   kubectl logs -l app=frontend -n microservices-demo
-   kubectl logs -l app=service-a -n microservices-demo
-   kubectl logs -l app=service-b -n microservices-demo
+   kubectl get pods -n microservices-dev
    ```
 
-6. **Security Best Practices**:
-   - All sensitive information is stored in Azure Key Vault
-   - Services communicate over internal network within the cluster
-   - External access is controlled through ingress rules
-   - Network policies can be enabled for additional security
-   - Regular monitoring and logging are enabled for all services
+   c. Check ingress rules:
+   ```bash
+   kubectl get ingress -n microservices-dev
+   ```
+
+   d. View service logs:
+   ```bash
+   # Frontend logs
+   kubectl logs -l app=frontend -n microservices-dev
+   # Service A logs
+   kubectl logs -l app=service-a -n microservices-dev
+   # Service B logs
+   kubectl logs -l app=service-b -n microservices-dev
+   ```
+
+   e. ArgoCD sync issues:
+   ```bash
+   # Force a refresh of ArgoCD's cache
+   kubectl patch application microservices-dev -n argocd -p '{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}' --type merge
+   
+   # Enable auto-sync if needed
+   kubectl patch application microservices-dev -n argocd -p '{"spec": {"syncPolicy": {"automated": {"prune": true, "selfHeal": true}}}}' --type merge
+   ```
+
+5. **Cleanup**:
+   
+   To remove all resources:
+   ```bash
+   # Trigger destroy workflow
+   gh workflow run "Deploy ArgoCD Applications" -f environment=all -f action=destroy
+
+   # Or manually:
+   kubectl delete namespace argocd
+   kubectl delete namespace microservices-dev
+   kubectl delete namespace ingress-nginx
+   kubectl delete namespace csi-secrets-store
+   ```
 
 ## How GitOps Works with ArgoCD
 
