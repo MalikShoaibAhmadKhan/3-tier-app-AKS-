@@ -212,34 +212,270 @@ After the workflow completes successfully (allow a few minutes for IPs to be ass
 
 ## 🏗️ Architecture Overview
 
-*(Existing diagram and text)*
 ![Architecture Diagram](architecture.png)
-...
+
+The architecture includes the following components:
+
+- **Azure Kubernetes Service (AKS)**: Managed Kubernetes cluster on Azure
+- **ArgoCD**: GitOps continuous delivery tool that automates the deployment of applications to Kubernetes
+- **Azure Key Vault**: Secure storage for secrets
+- **Terraform**: Infrastructure as Code tool to provision Azure resources
+- **GitHub Actions**: CI/CD pipeline to build and deploy the application
+- **Microservices**: Sample application with frontend, service-a, service-b, and PostgreSQL database
+
+**Diagram:**
+
+```mermaid
+graph TD
+    User --> AzureLB[Azure Load Balancer]
+    
+    subgraph Azure Cloud
+        AKV[Azure Key Vault]
+        subgraph VNet
+            NSG[Network Security Group]
+            subgraph Subnet
+                AzureLB --> AKSCluster{AKS Cluster}
+            end
+        end
+    end
+
+    subgraph AKSCluster
+        Ingress[NGINX Ingress Controller]
+        subgraph App Services
+            Frontend
+            ServiceA[Service A]
+            ServiceB[Service B]
+            Database[(PostgreSQL)]
+        end
+        subgraph Platform Services
+            ArgoCD
+            KeyVaultDriver[Key Vault CSI Driver]
+        end
+    end
+    
+    subgraph GitHub
+       Repo[GitHub Repo]
+       Actions[GitHub Actions]
+    end
+
+    %% Connections
+    Ingress --> Frontend
+    Ingress --> ServiceA
+    Ingress --> ServiceB
+    ServiceA --> Database
+    
+    KeyVaultDriver -.-> AKV
+    ServiceA -.-> KeyVaultDriver
+    Database -.-> KeyVaultDriver
+
+    ArgoCD --> Repo
+    Actions --> Repo
+```
+
+### 🎨 Diagram Interpretation
+
+1.  **External Access**: User traffic hits the Azure Load Balancer (`🌐`), which fronts the AKS cluster.
+2.  **Azure Networking**: The AKS cluster resides within a dedicated Subnet (`🔌`), which is part of a Virtual Network (`🔗`). Network Security Groups (`🛡️`) control traffic flow into the subnet.
+3.  **Ingress Routing**: Inside AKS, the Load Balancer routes traffic to the Ingress Controller (`🚦`), which then directs requests to the appropriate application services (`🌟`).
+4.  **Internal Communication**: Services like Service A (`⚡`) communicate internally with the PostgreSQL database (`💾`).
+5.  **Secret Management**: The Key Vault CSI Driver (`🔐`) securely fetches secrets from Azure Key Vault (`🔑`) and mounts them for use by applications and the database.
+6.  **GitOps Flow**: ArgoCD (`🔄`) pulls configuration from the GitHub Repository (`📦`) to manage deployments.
 
 ---
 
 ## 🔍 Quick Troubleshooting Guide
 
-*(Existing Troubleshooting Section)*
-If the application is not accessible...
+If the application is not accessible:
 
----
+   a. Check ingress controller status:
+   ```bash
+   kubectl get pods -n ingress-nginx
+   kubectl get svc -n ingress-nginx ingress-nginx-controller
+   ```
+
+   b. Verify application pods:
+   ```bash
+   kubectl get pods -n microservices-dev
+   ```
+
+   c. Check ingress rules:
+   ```bash
+   kubectl get ingress -n microservices-dev
+   ```
+
+   d. View service logs:
+   ```bash
+   # Frontend logs
+   kubectl logs -l app=frontend -n microservices-dev --tail=50
+   # Service A logs
+   kubectl logs -l app=service-a -n microservices-dev --tail=50
+   # Service B logs
+   kubectl logs -l app=service-b -n microservices-dev --tail=50
+   ```
+
+   e. ArgoCD sync issues:
+   ```bash
+   # Check ArgoCD application status
+   kubectl get applications -n argocd microservices-dev -o yaml
+   
+   # Check ArgoCD repo server logs
+   kubectl logs -n argocd -l app.kubernetes.io/name=argocd-repo-server --tail=50
+
+   # Force a refresh of ArgoCD's cache
+   kubectl patch application microservices-dev -n argocd -p '{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}' --type merge
+   
+   # Force a sync if auto-sync is off or stuck
+   # kubectl patch application microservices-dev -n argocd --type merge -p '{"operation": {"sync": {}}}'
+   ```
+
+--- 
 
 ## 🧹 Cleanup
 
-*(Existing Cleanup Section)*
-To remove all resources...
+To remove all resources created by this setup:
+
+*   **Option 1: Automated via GitHub Actions (Recommended)**
+    ```bash
+    # Trigger the destroy workflow
+    gh workflow run "Deploy ArgoCD Applications" -f environment=all -f action=destroy
+    ```
+    This workflow should:
+    1.  Delete the ArgoCD applications.
+    2.  Uninstall ArgoCD, Ingress Controller, CSI Driver.
+    3.  Use Terraform to destroy the Azure infrastructure (AKS, Key Vault, etc.).
+
+*   **Option 2: Manual Cleanup (Use if automated cleanup fails)**
+    1.  **Delete Kubernetes Resources:**
+        ```bash
+        kubectl delete namespace argocd microservices-dev ingress-nginx csi-secrets-store --ignore-not-found=true
+        # Might need to wait or force delete if namespaces are stuck
+        ```
+    2.  **Destroy Terraform Infrastructure:**
+        ```bash
+        # Navigate to the main terraform directory
+        cd terraform
+        
+        # Initialize with the remote backend
+        terraform init -reconfigure \
+          -backend-config="resource_group_name=kubemicrodemo-terraform-storage-rg" \
+          -backend-config="storage_account_name=<STORAGE_ACCOUNT_NAME>" \
+          -backend-config="container_name=tfstate" \
+          -backend-config="key=terraform-prod.tfstate" # Adjust key based on environment if needed
+        
+        # Destroy the main infrastructure (AKS, Key Vault, etc.)
+        terraform destroy -auto-approve
+        
+        # Navigate back
+        cd ..
+        ```
+    3.  **Destroy Terraform Bootstrap Resources:**
+        ```bash
+        # Navigate to the bootstrap directory
+        cd terraform/bootstrap
+        
+        # Initialize locally
+        terraform init -reconfigure
+        
+        # Destroy the backend storage resources
+        terraform destroy -auto-approve \
+          -var="client_id=<your_azure_client_id>" \
+          -var="client_secret=<your_azure_client_secret>" \
+          -var="tenant_id=<your_azure_tenant_id>" \
+          -var="subscription_id=<your_azure_subscription_id>"
+          
+        # Navigate back
+        cd ../..
+        ```
+    4.  **Delete Azure Service Principal (Optional):**
+        ```bash
+        # Find the SP ID (if you don't have it)
+        az ad sp list --display-name kubemicrodemo-sp-<timestamp> --query "[].id" -o tsv
+        # Delete using the ID
+        az ad sp delete --id <service-principal-id>
+        ```
 
 ---
 
 ## 📜 Manual Deployment Guide (Optional)
 
-*(Existing Manual Deployment Section)*
-Follow these steps to deploy the application manually...
+These steps are **not required** if using the automated GitHub Actions deployment. They are provided for reference or if you need to perform steps individually.
+
+#### 1. Clean Up (If needed)
+```bash
+# Delete existing namespaces if you want to start fresh
+kubectl delete ns argocd microservices-dev csi-secrets-store ingress-nginx --ignore-not-found=true
+```
+
+#### 2. Install ArgoCD
+```bash
+# Create argocd namespace and install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Wait for ArgoCD server to be ready (may take a few minutes)
+kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+
+# (Get password and access UI as described in Accessing section)
+```
+
+#### 3. Install NGINX Ingress Controller
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.service.externalTrafficPolicy=Local \
+  --wait
+```
+
+#### 4. Install Azure Key Vault CSI Driver
+```bash
+# Apply the installer manifest (ensure it targets the correct charts/versions)
+kubectl apply -f argo-cd/key-vault-csi-driver-installer.yaml
+
+# Wait for the necessary CRD to be established
+kubectl wait --for=condition=established --timeout=180s crd/secretproviderclasses.secrets-store.csi.x-k8s.io
+```
+
+#### 5. Configure Secret Provider Class
+```bash
+# Update the tenant ID in the secret provider configuration
+# Assumes your tenant ID is in $ARM_TENANT_ID or replace manually
+cp argo-cd/secret-provider.yaml temp-spc.yaml
+sed -i "s/\${TENANT_ID}/$ARM_TENANT_ID/" temp-spc.yaml
+kubectl apply -f temp-spc.yaml -n microservices-dev # Apply in your app namespace
+rm temp-spc.yaml
+```
+
+#### 6. Deploy Application via ArgoCD Manifests
+```bash
+# Create the application namespace if it doesn't exist
+kubectl create ns microservices-dev --dry-run=client -o yaml | kubectl apply -f -
+
+# Apply the ArgoCD project manifest
+cp argo-cd/project.yaml temp-proj.yaml
+sed -i "s|https://github.com/your-username/kubemicrodemo.git|$(git remote get-url origin)|g" temp-proj.yaml
+kubectl apply -f temp-proj.yaml -n argocd
+rm temp-proj.yaml
+
+# Apply the ArgoCD application manifest (e.g., for dev)
+cp argo-cd/applications/dev.yaml temp-app.yaml
+sed -i "s|https://github.com/your-username/kubemicrodemo.git|$(git remote get-url origin)|g" temp-app.yaml
+kubectl apply -f temp-app.yaml -n argocd
+rm temp-app.yaml
+```
+
+#### 7. Verify Deployment
+```bash
+# Check ArgoCD application sync status
+kubectl get applications -n argocd microservices-dev
+
+# Check application pods
+kubectl get pods -n microservices-dev
+
+# (Access application as described in Accessing section)
+```
 
 ---
 
-## <a name="other-sections"></a> Other Sections
-
-*(Existing sections like How GitOps Works, Secret Management, Learning Outcomes, etc.)*
-...
