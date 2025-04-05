@@ -212,7 +212,6 @@ After the workflow completes successfully (allow a few minutes for IPs to be ass
 
 ## 🏗️ Architecture Overview
 
-![Architecture Diagram](architecture.png)
 
 The architecture includes the following components:
 
