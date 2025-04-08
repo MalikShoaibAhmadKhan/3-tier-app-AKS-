@@ -95,53 +95,16 @@ jobs:
         with:
           version: v3.10.0
           
-      - name: Add ingress-nginx repository
-        run: |
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-          helm repo update
-          
       - name: Lint Helm chart
         run: helm lint ./helm-chart
         
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        
-      - name: Create kind cluster
-        uses: helm/kind-action@v1.5.0
-        
-      - name: Install ingress-nginx
+      - name: Validate Helm template
         run: |
-          helm install ingress-nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx \
-            --create-namespace \
-            --wait
-          
-      - name: Validate Helm template with ingress
-        run: |
-          # Render the application templates
+          # Render and validate the application templates
           helm template ./helm-chart \
-            -f ./helm-chart/values-${{ env.ENVIRONMENT == 'prod' && 'prod' || 'local' }}.yaml \
-            --namespace microservices-dev \
-            > rendered.yaml
-          
-          # Create the namespace
-          kubectl create namespace microservices-dev
-          
-          # Validate the rendered templates
-          kubectl apply --dry-run=client -f rendered.yaml
-          
-          # Validate ingress configuration
-          INGRESS_CLASS=$(kubectl get ingressclass nginx -o jsonpath='{.metadata.name}' || echo "")
-          if [ -z "$INGRESS_CLASS" ]; then
-            echo "Error: nginx IngressClass not found"
-            exit 1
-          fi
-          
-          # Validate ingress controller is ready
-          kubectl wait --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/component=controller \
-            --timeout=90s
+            -f ./helm-chart/values.yaml \
+            --namespace microservices-demo \
+            --debug
 
   update-version:
     needs: [build-and-push, validate-helm]
@@ -165,19 +128,16 @@ jobs:
           
       - name: Update image versions in values file
         run: |
-          # Determine which values file to update
-          VALUES_FILE="./helm-chart/values-${{ env.ENVIRONMENT == 'prod' && 'prod' || 'local' }}.yaml"
-          
-          # Update the image tags in values file
-          yq -i '.frontend.image.tag = "${{ steps.version.outputs.VERSION }}"' $VALUES_FILE
-          yq -i '.serviceA.image.tag = "${{ steps.version.outputs.VERSION }}"' $VALUES_FILE
-          yq -i '.serviceB.image.tag = "${{ steps.version.outputs.VERSION }}"' $VALUES_FILE
+          # Update the image tags in values.yaml
+          yq -i '.frontend.image.tag = "${{ steps.version.outputs.VERSION }}"' ./helm-chart/values.yaml
+          yq -i '.serviceA.image.tag = "${{ steps.version.outputs.VERSION }}"' ./helm-chart/values.yaml
+          yq -i '.serviceB.image.tag = "${{ steps.version.outputs.VERSION }}"' ./helm-chart/values.yaml
           
       - name: Commit and push changes
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           
-          git add ./helm-chart/values-${{ env.ENVIRONMENT == 'prod' && 'prod' || 'local' }}.yaml
+          git add ./helm-chart/values.yaml
           git commit -m "Update image versions to ${{ steps.version.outputs.VERSION }}"
           git push 

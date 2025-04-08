@@ -24,7 +24,7 @@ az ad sp create-for-rbac --name "$SP_NAME" \
 ```
 
 2. **Extract Service Principal Information**
-```bash
+    ```bash
 # Extract values from sp_output.json
 AZURE_CLIENT_ID=$(cat sp_output.json | jq -r .clientId)
 AZURE_CLIENT_SECRET=$(cat sp_output.json | jq -r .clientSecret)
