@@ -69,8 +69,28 @@
             max-height: 300px; /* Limit height and add scroll */
             overflow-y: auto;
         }
-        .status-fetching { color: #6c757d; }
-        .status-error { color: #dc3545; font-weight: bold; }
+        .status-fetching { 
+            color: #6c757d; 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-error { 
+            color: #dc3545; 
+            font-weight: bold; 
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -80,44 +100,37 @@
         <div class="service-box">
             <h2>Service A (Database Interaction)</h2>
             <button onclick="fetchData('a')">Fetch & Add Record</button>
-            <pre id="output-a">Click the button to fetch data...</pre>
+            <pre id="output-a">Ready to fetch data...</pre>
         </div>
 
         <div class="service-box">
             <h2>Service B (Simple Response)</h2>
             <button onclick="fetchData('b')">Fetch Random Data</button>
-            <pre id="output-b">Click the button to fetch data...</pre>
+            <pre id="output-b">Ready to fetch data...</pre>
         </div>
     </div>
 
     <script>
         async function fetchData(service) {
             const outputElement = document.getElementById(`output-${service}`);
-            outputElement.textContent = 'Fetching...';
-            outputElement.className = 'status-fetching'; // Add class for styling
+            outputElement.innerHTML = '<div class="status-fetching"><div class="spinner"></div>Fetching data...</div>';
             let url = '';
-            // Use relative URLs that match the ingress paths
             if (service === 'a') {
-                url = '/api/service-a/data'; // Use ingress path instead of localhost
+                url = '/api/service-a/data';
             } else if (service === 'b') {
-                url = '/api/service-b/data'; // Use ingress path instead of localhost
+                url = '/api/service-b/data';
             }
 
             try {
-                // Add CORS headers if running locally outside Docker Compose network initially
-                // For simplicity within Docker Compose, direct calls should work if services are networked.
-                // If facing CORS issues, backend services would need 'cors' middleware.
                 const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                const data = await response.json(); // Parse the response as JSON
-                // Display the JSON data nicely formatted
+                const data = await response.json();
                 outputElement.textContent = JSON.stringify(data, null, 2);
-                outputElement.className = ''; // Remove status class on success
+                outputElement.className = '';
             } catch (error) {
-                outputElement.textContent = `Error fetching data: ${error.message}`;
-                outputElement.className = 'status-error'; // Add error class
+                outputElement.innerHTML = `<div class="status-error">Error: ${error.message}</div>`;
                 console.error('Fetch error:', error);
             }
         }
