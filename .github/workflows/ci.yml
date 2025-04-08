@@ -25,7 +25,7 @@ env:
   FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
   SERVICE_A_IMAGE_NAME: ${{ github.repository }}/service-a
   SERVICE_B_IMAGE_NAME: ${{ github.repository }}/service-b
-  ENVIRONMENT: ${{ inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+  ENVIRONMENT: ${{ inputs.environment || 'dev' }}
 
 jobs:
   build-and-push:
