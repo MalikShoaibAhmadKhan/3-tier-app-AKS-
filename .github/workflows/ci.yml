@@ -8,6 +8,7 @@ on:
       - 'service-a/**'
       - 'service-b/**'
       - 'helm-chart/**'
+      - 'README.md'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -97,6 +98,12 @@ jobs:
           
       - name: Lint Helm chart
         run: helm lint ./helm-chart
+        
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.5.0
         
       - name: Validate Helm template
         run: |
