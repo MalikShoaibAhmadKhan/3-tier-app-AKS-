@@ -1,41 +1,36 @@
 # Default values for microservices-demo
 # This is a YAML-formatted file.
-
 replicaCount: 1
-
 frontend:
   name: frontend
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/frontend
-    tag: latest
+    tag: f1694457
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 80
     targetPort: 80
-
 serviceA:
   name: service-a
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-a
-    tag: latest
+    tag: f1694457
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 3001
     targetPort: 3001
-
 serviceB:
   name: service-b
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-b
-    tag: latest
+    tag: f1694457
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 3002
     targetPort: 3002
-
 database:
   name: postgres
   image:
@@ -48,23 +43,20 @@ database:
     targetPort: 5432
   storage:
     size: 1Gi
-
 # Canary deployment settings
 canary:
   enabled: false
   percentage: 20
-
 ingressNginx:
   enabled: true
   controller:
     service:
       externalTrafficPolicy: Local
-
 # Azure Key Vault configuration
 keyVault:
-  enabled: false  # Set to true when using Azure Key Vault
-  name: ""        # Name of the Key Vault
-  tenantId: ""   # Azure Tenant ID
+  enabled: false # Set to true when using Azure Key Vault
+  name: "" # Name of the Key Vault
+  tenantId: "" # Azure Tenant ID
   secrets:
     - name: postgres-db-secret
       keys:
