@@ -16,6 +16,7 @@
 # Set your preferred service principal name
 SP_NAME="your-sp-name-$(date +%s)"  # Replace 'your-sp-name' with your preferred name
 
+# Test CI trigger
 az login
 az ad sp create-for-rbac --name "$SP_NAME" \
   --role contributor \
