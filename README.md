@@ -11,6 +11,13 @@
 - Azure CLI installed and configured
 - `jq` command-line tool installed
 
+## 🔄 Latest Updates
+
+- Improved CI workflow with better error handling and SARIF file management
+- Fixed issue with KubeLinter validation
+- Added defensive handling of missing artifact files
+- Made workflow more resilient to intermittent failures
+
 ### One-Time Setup
 
 1. **Create Azure Service Principal**
