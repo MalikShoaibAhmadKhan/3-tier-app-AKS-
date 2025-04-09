@@ -5,7 +5,7 @@ frontend:
   name: frontend
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/frontend
-    tag: a0c6c915
+    tag: bb8e6c57
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -15,7 +15,7 @@ serviceA:
   name: service-a
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-a
-    tag: a0c6c915
+    tag: bb8e6c57
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -25,7 +25,7 @@ serviceB:
   name: service-b
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-b
-    tag: a0c6c915
+    tag: bb8e6c57
     pullPolicy: Always
   service:
     type: ClusterIP
