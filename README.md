@@ -76,6 +76,35 @@
    - Builds and pushes Docker images
    - Updates application deployments
 
+## 🔒 Security and Vulnerability Management
+
+This project includes several security features:
+
+### Vulnerability Scanning
+- **Trivy**: We use Aqua Security's Trivy to scan Docker images for vulnerabilities
+- **Gitleaks**: Used to detect and prevent secrets being committed to the repository
+
+### Security Measures
+- **Docker Image Security**: All Dockerfiles include security updates for critical packages
+- **Dependency Management**: Node.js dependencies use version resolutions to enforce patched versions
+- **VEX Documentation**: We maintain VEX (Vulnerability Exploitability eXchange) documents in the `.vex` directory
+
+### Maintaining Security
+1. **Update Dependencies**:
+   ```bash
+   # Run the dependency update script
+   ./update-dependencies.sh
+   ```
+
+2. **Review Vulnerability Reports**:
+   - Check the GitHub Actions tab for the latest Trivy and Gitleaks scans
+   - Address any findings by updating the relevant files
+
+3. **Secret Management**:
+   - Never commit actual secrets to the repository
+   - Use the example template files and override values at deployment time
+   - Make sure to add secret files to `.gitignore`
+
 ## 🏗️ Architecture Overview
 
 ![Architecture Diagram](architecture.png)

@@ -10,6 +10,9 @@
     "cors": "^2.8.5",
     "express": "^4.17.1"
   },
+  "resolutions": {
+    "cross-spawn": "^7.0.5"
+  },
   "author": "",
   "license": "ISC"
 }

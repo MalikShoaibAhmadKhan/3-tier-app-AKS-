@@ -1,0 +1,86 @@
+name: Security Scanning
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Run weekly on Mondays
+  push:
+    branches: [ main ]
+    paths:
+      - '**.js'
+      - '**.json'
+      - '**.html'
+      - '**.css'
+      - 'Dockerfile'
+      - '**/Dockerfile'
+      - 'package*.json'
+      - '**/package*.json'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  gitleaks:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner for frontend
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: 'true'
+        with:
+          image-ref: 'ghcr.io/wahaj4311/3-tier-app/frontend:latest'
+          format: 'sarif'
+          output: 'trivy-results-frontend.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy vulnerability scanner for service-a
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: 'true'
+        with:
+          image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-a:latest'
+          format: 'sarif'
+          output: 'trivy-results-service-a.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy vulnerability scanner for service-b
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: 'true'
+        with:
+          image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-b:latest'
+          format: 'sarif'
+          output: 'trivy-results-service-b.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results-*.sarif'
+          category: 'trivy-container-scanning'
+        if: always()  # Always upload results, even if vulnerabilities are found 
