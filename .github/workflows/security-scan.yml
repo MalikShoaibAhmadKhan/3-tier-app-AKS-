@@ -77,10 +77,17 @@ jobs:
           output: 'trivy-results-service-b.sarif'
           exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
+          
+      - name: Debug - List generated files
+        run: |
+          pwd
+          find . -name "*.sarif" -type f
+          ls -la
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-results-*.sarif'
+          sarif_file: './trivy-results-*.sarif'
           category: 'trivy-container-scanning'
+          wait-for-processing: true
         if: always()  # Always upload results, even if vulnerabilities are found 
