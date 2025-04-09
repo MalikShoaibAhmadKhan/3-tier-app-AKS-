@@ -52,7 +52,7 @@ jobs:
         with:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/frontend:latest'
           format: 'sarif'
-          output: 'trivy-results-frontend.sarif'
+          output: '${{ github.workspace }}/trivy-results-frontend.sarif'
           exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
 
@@ -63,7 +63,7 @@ jobs:
         with:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-a:latest'
           format: 'sarif'
-          output: 'trivy-results-service-a.sarif'
+          output: '${{ github.workspace }}/trivy-results-service-a.sarif'
           exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
 
@@ -74,20 +74,37 @@ jobs:
         with:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-b:latest'
           format: 'sarif'
-          output: 'trivy-results-service-b.sarif'
+          output: '${{ github.workspace }}/trivy-results-service-b.sarif'
           exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
           
       - name: Debug - List generated files
         run: |
           pwd
-          find . -name "*.sarif" -type f
-          ls -la
+          echo "Github workspace: ${{ github.workspace }}"
+          find ${{ github.workspace }} -name "*.sarif" -type f | sort
+          ls -la ${{ github.workspace }}
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Frontend Trivy results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: './trivy-results-*.sarif'
-          category: 'trivy-container-scanning'
+          sarif_file: ${{ github.workspace }}/trivy-results-frontend.sarif
+          category: 'trivy-container-scanning-frontend'
           wait-for-processing: true
-        if: always()  # Always upload results, even if vulnerabilities are found 
+        if: always() && hashFiles('${{ github.workspace }}/trivy-results-frontend.sarif') != ''
+        
+      - name: Upload Service-A Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ github.workspace }}/trivy-results-service-a.sarif
+          category: 'trivy-container-scanning-service-a'
+          wait-for-processing: true
+        if: always() && hashFiles('${{ github.workspace }}/trivy-results-service-a.sarif') != ''
+        
+      - name: Upload Service-B Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ github.workspace }}/trivy-results-service-b.sarif
+          category: 'trivy-container-scanning-service-b'
+          wait-for-processing: true
+        if: always() && hashFiles('${{ github.workspace }}/trivy-results-service-b.sarif') != '' 
