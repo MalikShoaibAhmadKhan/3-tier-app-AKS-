@@ -313,5 +313,3 @@ jobs:
           git add ./helm-chart/values.yaml ./helm-chart/values-local.yaml
           git commit -m "Update image versions to ${{ steps.version.outputs.VERSION }}"
           git push 
-
-          category: trivy-vulnerability-scan 
