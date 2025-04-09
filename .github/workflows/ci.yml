@@ -39,7 +39,8 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-fs-scan.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
@@ -105,7 +106,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-results-frontend.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
@@ -126,7 +128,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_A_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-results-service-a.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
@@ -147,10 +150,19 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_B_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-results-service-b.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results as artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: trivy-results
+          path: trivy-*.sarif
+          retention-days: 1
 
   validate-helm:
     needs: build-and-push
@@ -188,11 +200,35 @@ jobs:
           directory: ./rendered-manifests
           config: .kube-linter.yaml
 
-      - name: Upload scan results
-        uses: github/codeql-action/upload-sarif@v2
+      - name: Upload KubeLinter results as artifacts
+        uses: actions/upload-artifact@v3
         if: always()
         with:
-          sarif_file: kube-linter.sarif
+          name: kube-linter-results
+          path: kube-linter.sarif
+          retention-days: 1
+
+  upload-security-results:
+    needs: [build-and-push, validate-helm]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download Trivy results
+        uses: actions/download-artifact@v3
+        with:
+          name: trivy-results
+
+      - name: Download KubeLinter results
+        uses: actions/download-artifact@v3
+        with:
+          name: kube-linter-results
+
+      - name: Upload all SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: '*.sarif'
+          category: 'vulnerability-scan'
 
   update-version:
     needs: [build-and-push, validate-helm]
@@ -234,3 +270,10 @@ jobs:
           git add ./helm-chart/values.yaml ./helm-chart/values-local.yaml
           git commit -m "Update image versions to ${{ steps.version.outputs.VERSION }}"
           git push 
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-*.sarif
+          category: trivy-vulnerability-scan 

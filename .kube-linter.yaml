@@ -1,85 +1,85 @@
 checks:
   # Resource Management
-  - name: no-limits
+  no-limits:
     severity: error
     remediation: Set resource limits for all containers to prevent resource exhaustion
     scope:
       objectKinds:
         - DeploymentLike
-  - name: no-requests
+  no-requests:
     severity: error
     remediation: Set resource requests for all containers to ensure proper scheduling
     scope:
       objectKinds:
         - DeploymentLike
-  - name: unset-cpu-requirements
+  unset-cpu-requirements:
     severity: error
     remediation: Set CPU requests and limits
-  - name: unset-memory-requirements
+  unset-memory-requirements:
     severity: error
     remediation: Set memory requests and limits
 
   # Security Context
-  - name: no-read-only-root-fs
+  no-read-only-root-fs:
     severity: error
     remediation: Set readOnlyRootFilesystem to true to prevent writes to container root filesystem
-  - name: privilege-escalation
+  privilege-escalation:
     severity: error
     remediation: Set allowPrivilegeEscalation to false
-  - name: run-as-non-root
+  run-as-non-root:
     severity: error
     remediation: Run containers as non-root user with specific UID
-  - name: capabilities-strict
+  capabilities-strict:
     severity: error
     remediation: Drop all capabilities and only add necessary ones
-  - name: dangling-service
+  dangling-service:
     severity: warning
     remediation: Ensure services have matching pod selectors
 
   # Network Policies
-  - name: no-network-policies
+  no-network-policies:
     severity: warning
     remediation: Define network policies to restrict pod communication
-  - name: exposed-services
+  exposed-services:
     severity: warning
     remediation: Avoid exposing services to external traffic unnecessarily
 
   # RBAC
-  - name: cluster-admin-role-binding
+  cluster-admin-role-binding:
     severity: error
     remediation: Avoid using cluster-admin role, create specific roles instead
-  - name: service-account-token
+  service-account-token:
     severity: warning
     remediation: Disable automounting of service account tokens when not needed
 
   # Secrets and Configuration
-  - name: sensitive-host-mounts
+  sensitive-host-mounts:
     severity: error
     remediation: Avoid mounting sensitive host paths
-  - name: environment-secrets
+  environment-secrets:
     severity: error
     remediation: Use secrets instead of environment variables for sensitive data
-  - name: no-secret-as-env-var
+  no-secret-as-env-var:
     severity: error
     remediation: Mount secrets as files instead of environment variables
-  - name: empty-configmap
+  empty-configmap:
     severity: warning
     remediation: Ensure ConfigMaps are not empty
 
   # Image Security
-  - name: latest-tag
+  latest-tag:
     severity: warning
     remediation: Use specific image tags instead of 'latest'
-  - name: unsafe-sysctls
+  unsafe-sysctls:
     severity: error
     remediation: Avoid using unsafe sysctls
-  - name: no-anti-affinity
+  no-anti-affinity:
     severity: warning
     remediation: Use pod anti-affinity for high-availability
-  - name: no-liveness-probe
+  no-liveness-probe:
     severity: warning
     remediation: Define liveness probes for containers
-  - name: no-readiness-probe
+  no-readiness-probe:
     severity: warning
     remediation: Define readiness probes for containers
 
