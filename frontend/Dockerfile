@@ -1,5 +1,6 @@
 # Use an official nginx image as a parent image
-FROM nginx:stable-alpine
+# Pinning to a specific minor version (e.g., 1.26) instead of 'stable' for better reproducibility
+FROM nginx:1.27-alpine-slim
 
 # Install security updates for vulnerable packages
 RUN apk update && \

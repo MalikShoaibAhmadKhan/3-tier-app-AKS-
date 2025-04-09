@@ -1,5 +1,5 @@
 # Use an official Node.js runtime as a parent image
-FROM node:18-alpine
+FROM node:23-slim
 
 # Install security updates for vulnerable packages
 RUN apk update && \
@@ -16,8 +16,8 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json (if available)
 COPY package*.json ./
 
-# Update package.json to explicitly override the cross-spawn dependency
-RUN npm pkg set overrides.cross-spawn="^7.0.5"
+# # Update package.json to explicitly override the cross-spawn dependency
+# RUN npm pkg set overrides.cross-spawn="^7.0.5"
 
 # Install app dependencies
 RUN npm install
