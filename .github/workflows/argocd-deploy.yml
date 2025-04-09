@@ -21,7 +21,7 @@ on:
         options: [deploy, destroy]
 
 env:
-  ENVIRONMENT: ${{ inputs.environment || 'all' }}
+  ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
   ACTION: ${{ inputs.action || 'deploy' }}
 
 jobs:
