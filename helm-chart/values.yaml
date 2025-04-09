@@ -62,3 +62,19 @@ keyVault:
       keys:
         - POSTGRES_USER
         - POSTGRES_PASSWORD
+
+# Database configuration
+db:
+  # These values should be overridden in production using --set or a values file
+  user: "user"
+  password: "password"
+  name: "microservice_db"
+  host: "postgres-service"
+  port: 5432
+
+# Secret configuration
+secrets:
+  # These values should be overridden in production using --set or a values file
+  dbUser: "user"
+  dbPassword: "password"
+  dbName: "microservice_db"
