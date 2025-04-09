@@ -1,6 +1,15 @@
 # Use an official Node.js runtime as a parent image
 FROM node:18-alpine
 
+# Install security updates for vulnerable packages
+RUN apk update && \
+    apk upgrade --no-cache \
+    libexpat \
+    libxml2 \
+    libxslt \
+    xz-libs && \
+    rm -rf /var/cache/apk/*
+
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
