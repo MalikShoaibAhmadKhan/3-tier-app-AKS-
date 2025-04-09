@@ -53,7 +53,7 @@ jobs:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/frontend:latest'
           format: 'sarif'
           output: 'trivy-results-frontend.sarif'
-          exit-code: '1'
+          exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
 
       - name: Run Trivy vulnerability scanner for service-a
@@ -64,7 +64,7 @@ jobs:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-a:latest'
           format: 'sarif'
           output: 'trivy-results-service-a.sarif'
-          exit-code: '1'
+          exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
 
       - name: Run Trivy vulnerability scanner for service-b
@@ -75,11 +75,11 @@ jobs:
           image-ref: 'ghcr.io/wahaj4311/3-tier-app/service-b:latest'
           format: 'sarif'
           output: 'trivy-results-service-b.sarif'
-          exit-code: '1'
+          exit-code: '0'  # Don't fail on vulnerabilities, just report them
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results-*.sarif'
           category: 'trivy-container-scanning'

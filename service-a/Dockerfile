@@ -16,6 +16,9 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json (if available)
 COPY package*.json ./
 
+# Update package.json to explicitly override the cross-spawn dependency
+RUN npm pkg set overrides.cross-spawn="^7.0.5"
+
 # Install app dependencies
 RUN npm install
 

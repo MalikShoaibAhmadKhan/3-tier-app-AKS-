@@ -112,7 +112,7 @@
       ],
       "analysis": {
         "state": "fixed",
-        "detail": "Fixed by using package.json resolutions to enforce cross-spawn version 7.0.5 or later."
+        "detail": "Fixed by using npm overrides to enforce cross-spawn version 7.0.5 or later. This vulnerability is a denial of service issue in the regular expression handling of cross-spawn. The fix is implemented in both package.json resolutions and directly in the Docker build process via npm pkg set overrides."
       }
     }
   ]
