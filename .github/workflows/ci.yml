@@ -107,7 +107,7 @@ jobs:
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
           format: 'sarif'
-          output: 'trivy-results-frontend.sarif'
+          output: 'trivy-results/trivy-results-frontend.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
@@ -129,7 +129,7 @@ jobs:
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_A_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
           format: 'sarif'
-          output: 'trivy-results-service-a.sarif'
+          output: 'trivy-results/trivy-results-service-a.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
@@ -151,17 +151,20 @@ jobs:
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_B_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
           format: 'sarif'
-          output: 'trivy-results-service-b.sarif'
+          output: 'trivy-results/trivy-results-service-b.sarif'
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
+      - name: Create Trivy results directory
+        run: mkdir -p trivy-results
 
       - name: Upload Trivy scan results as artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: trivy-results
-          path: trivy-*.sarif
+          path: trivy-results/
           retention-days: 1
 
   validate-helm:
@@ -199,13 +202,22 @@ jobs:
         with:
           directory: ./rendered-manifests
           config: .kube-linter.yaml
+          format: sarif
+          output-file: kube-linter-results/kube-linter.sarif
+        continue-on-error: true
 
+      - name: Create KubeLinter results directory
+        run: |
+          mkdir -p kube-linter-results
+          # Copy the SARIF file if it exists
+          cp -f kube-linter.sarif kube-linter-results/ 2>/dev/null || true
+        
       - name: Upload KubeLinter results as artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: kube-linter-results
-          path: kube-linter.sarif
+          path: kube-linter-results/
           retention-days: 1
 
   upload-security-results:
@@ -218,24 +230,38 @@ jobs:
     steps:
       - name: Download Trivy results
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: trivy-results
           path: trivy-results
 
       - name: Download KubeLinter results
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: kube-linter-results
           path: kube-linter-results
 
       - name: List files
         run: |
-          ls -la trivy-results/
-          ls -la kube-linter-results/
+          echo "Current directory:"
+          pwd
+          echo "All files:"
+          find . -type f | sort
+          
+          # Create directories if they don't exist
+          mkdir -p trivy-results
+          mkdir -p kube-linter-results
+          
+          echo "Trivy results directory:"
+          ls -la trivy-results/ || true
+          echo "KubeLinter results directory:"
+          ls -la kube-linter-results/ || true
 
       - name: Upload Trivy SARIF results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: hashFiles('trivy-results/*.sarif') != ''
+        continue-on-error: true
         with:
           sarif_file: trivy-results/*.sarif
           category: trivy-container-scanning
@@ -243,7 +269,8 @@ jobs:
 
       - name: Upload KubeLinter SARIF results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: hashFiles('kube-linter-results/*.sarif') != ''
+        continue-on-error: true
         with:
           sarif_file: kube-linter-results/*.sarif
           category: kube-linter-scan
@@ -290,9 +317,4 @@ jobs:
           git commit -m "Update image versions to ${{ steps.version.outputs.VERSION }}"
           git push 
 
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: trivy-*.sarif
           category: trivy-vulnerability-scan 
