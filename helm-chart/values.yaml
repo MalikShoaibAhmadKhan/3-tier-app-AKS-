@@ -5,7 +5,7 @@ frontend:
   name: frontend
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/frontend
-    tag: "8d6f554e"
+    tag: "b85310b6"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -15,7 +15,7 @@ serviceA:
   name: service-a
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-a
-    tag: "8d6f554e"
+    tag: "b85310b6"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -25,7 +25,7 @@ serviceB:
   name: service-b
   image:
     repository: ghcr.io/wahaj4311/3-tier-app/service-b
-    tag: "8d6f554e"
+    tag: "b85310b6"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -62,7 +62,6 @@ keyVault:
       keys:
         - POSTGRES_USER
         - POSTGRES_PASSWORD
-
 # Database configuration
 db:
   # These values should be overridden in production using --set or a values file
@@ -71,7 +70,6 @@ db:
   name: "CHANGE_ME"
   host: "postgres-service"
   port: 5432
-
 # Secret configuration
 secrets:
   # These values should be overridden in production using --set or a values file
