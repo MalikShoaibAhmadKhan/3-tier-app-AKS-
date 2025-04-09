@@ -11,7 +11,7 @@ spec:
     path: helm-chart
     helm:
       valueFiles:
-        - ./values-local.yaml
+        - values-local.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: microservices-dev
