@@ -28,7 +28,42 @@ env:
   ENVIRONMENT: ${{ inputs.environment || 'dev' }}
 
 jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: '3-tier-app'
+          path: '.'
+          format: 'HTML'
+          out: 'reports'
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/security-audit
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+
   build-and-push:
+    needs: security-scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -63,6 +98,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
             ${{ env.ENVIRONMENT == 'prod' && format('{0}/{1}:stable', env.REGISTRY, env.FRONTEND_IMAGE_NAME) || '' }}
+          sbom: true
+          provenance: true
+
+      - name: Scan Frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
       - name: Build and push Service A Docker image
         uses: docker/build-push-action@v4
@@ -73,6 +119,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.SERVICE_A_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
             ${{ env.REGISTRY }}/${{ env.SERVICE_A_IMAGE_NAME }}:latest
             ${{ env.ENVIRONMENT == 'prod' && format('{0}/{1}:stable', env.REGISTRY, env.SERVICE_A_IMAGE_NAME) || '' }}
+          sbom: true
+          provenance: true
+
+      - name: Scan Service A image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_A_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
       - name: Build and push Service B Docker image
         uses: docker/build-push-action@v4
@@ -83,6 +140,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.SERVICE_B_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
             ${{ env.REGISTRY }}/${{ env.SERVICE_B_IMAGE_NAME }}:latest
             ${{ env.ENVIRONMENT == 'prod' && format('{0}/{1}:stable', env.REGISTRY, env.SERVICE_B_IMAGE_NAME) || '' }}
+          sbom: true
+          provenance: true
+
+      - name: Scan Service B image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.SERVICE_B_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
   validate-helm:
     needs: build-and-push
@@ -111,7 +179,20 @@ jobs:
           helm template ./helm-chart \
             -f ./helm-chart/values.yaml \
             --namespace microservices-demo \
+            --output-dir ./rendered-manifests \
             --debug
+
+      - name: Run KubeLinter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: ./rendered-manifests
+          config: .kube-linter.yaml
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: kube-linter.sarif
 
   update-version:
     needs: [build-and-push, validate-helm]

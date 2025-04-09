@@ -1,0 +1,114 @@
+checks:
+  # Resource Management
+  - name: no-limits
+    severity: error
+    remediation: Set resource limits for all containers to prevent resource exhaustion
+    scope:
+      objectKinds:
+        - DeploymentLike
+  - name: no-requests
+    severity: error
+    remediation: Set resource requests for all containers to ensure proper scheduling
+    scope:
+      objectKinds:
+        - DeploymentLike
+  - name: unset-cpu-requirements
+    severity: error
+    remediation: Set CPU requests and limits
+  - name: unset-memory-requirements
+    severity: error
+    remediation: Set memory requests and limits
+
+  # Security Context
+  - name: no-read-only-root-fs
+    severity: error
+    remediation: Set readOnlyRootFilesystem to true to prevent writes to container root filesystem
+  - name: privilege-escalation
+    severity: error
+    remediation: Set allowPrivilegeEscalation to false
+  - name: run-as-non-root
+    severity: error
+    remediation: Run containers as non-root user with specific UID
+  - name: capabilities-strict
+    severity: error
+    remediation: Drop all capabilities and only add necessary ones
+  - name: dangling-service
+    severity: warning
+    remediation: Ensure services have matching pod selectors
+
+  # Network Policies
+  - name: no-network-policies
+    severity: warning
+    remediation: Define network policies to restrict pod communication
+  - name: exposed-services
+    severity: warning
+    remediation: Avoid exposing services to external traffic unnecessarily
+
+  # RBAC
+  - name: cluster-admin-role-binding
+    severity: error
+    remediation: Avoid using cluster-admin role, create specific roles instead
+  - name: service-account-token
+    severity: warning
+    remediation: Disable automounting of service account tokens when not needed
+
+  # Secrets and Configuration
+  - name: sensitive-host-mounts
+    severity: error
+    remediation: Avoid mounting sensitive host paths
+  - name: environment-secrets
+    severity: error
+    remediation: Use secrets instead of environment variables for sensitive data
+  - name: no-secret-as-env-var
+    severity: error
+    remediation: Mount secrets as files instead of environment variables
+  - name: empty-configmap
+    severity: warning
+    remediation: Ensure ConfigMaps are not empty
+
+  # Image Security
+  - name: latest-tag
+    severity: warning
+    remediation: Use specific image tags instead of 'latest'
+  - name: unsafe-sysctls
+    severity: error
+    remediation: Avoid using unsafe sysctls
+  - name: no-anti-affinity
+    severity: warning
+    remediation: Use pod anti-affinity for high-availability
+  - name: no-liveness-probe
+    severity: warning
+    remediation: Define liveness probes for containers
+  - name: no-readiness-probe
+    severity: warning
+    remediation: Define readiness probes for containers
+
+settings:
+  # Exclude system namespaces
+  exclude:
+    - "kube-system"
+    - "monitoring"
+    - "logging"
+    - "ingress-nginx"
+
+  # Set minimum severity level
+  minSeverity: warning
+
+  # Include all recommended checks
+  includeGroups:
+    - "all"
+
+  # Custom check parameters
+  customChecks:
+    - name: required-label-owner
+      severity: warning
+      remediation: Add 'owner' label to resources
+      template: required-label
+      params:
+        key: owner
+    - name: required-label-environment
+      severity: warning
+      remediation: Add 'environment' label to resources
+      template: required-label
+      params:
+        key: environment 
