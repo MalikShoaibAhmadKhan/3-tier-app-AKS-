@@ -29,6 +29,9 @@ build/
 # Kubernetes sensitive files (we provide example files instead)
 kubernetes/db-secret.yaml
 
+# Helm chart secret values
+helm-chart/values-secrets.yaml
+
 # Docker Compose with real credentials (we provide example file instead)
 docker-compose.yml
 

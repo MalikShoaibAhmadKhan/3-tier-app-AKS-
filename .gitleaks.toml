@@ -1,4 +1,24 @@
-title = "3-tier-app secrets detection"
+# Gitleaks configuration file
+
+title = "Gitleaks Configuration"
+
+# Allow Kubernetes Secret resources that don't contain actual secrets
+[[allowlist]]
+description = "Allow Kubernetes Secret resources in templates"
+paths = [
+    '''helm-chart/templates/secrets\.yaml''',
+    '''kubernetes/db-secret\.example\.yaml''',
+    '''argo-cd/secret-provider\.yaml''',
+    '''argo-cd/install\.yaml'''
+]
+
+# Allow Secret kind definitions without actual secrets
+[[allowlist]]
+description = "Allow Secret resource definitions"
+regexes = [
+    '''kind:\s*Secret''',
+    '''SecretProviderClass'''
+]
 
 [[rules]]
 description = "AWS Access Key ID"
