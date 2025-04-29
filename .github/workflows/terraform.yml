@@ -62,7 +62,7 @@ jobs:
           
           # Define expected names
           RG_NAME="kubemicrodemo-terraform-storage-rg"
-          SA_NAME="my_inner_storage"
+          SA_NAME="myinnerstorage01"
           CONTAINER_NAME="tfstate"
           
           # Check if resource group exists
