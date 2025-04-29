@@ -25,7 +25,7 @@ resource "azurerm_resource_group" "tf_state_rg" {
 }
 
 resource "azurerm_storage_account" "tf_state_sa" {
-  name                     = "tfstatekubemicro"
+  name                     = "my_inner_storage"
   resource_group_name      = azurerm_resource_group.tf_state_rg.name
   location                 = azurerm_resource_group.tf_state_rg.location
   account_tier             = "Standard"
