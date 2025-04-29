@@ -31,7 +31,7 @@ variable "node_count" {
 variable "vm_size" {
   description = "Size of the VMs in the node pool"
   type        = string
-  default     = "Standard_D2_v2"
+  default     = "Standard_B2s"
 }
 
 variable "environment" {
